@@ -2,6 +2,7 @@ package io.github._3xhaust.root_server.domain.image.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
@@ -23,4 +24,14 @@ public class Image {
     @CreatedDate
     @Column
     private Instant createdAt;
+
+    @Builder
+    public Image(String url) {
+        this.url = url;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+    }
 }
