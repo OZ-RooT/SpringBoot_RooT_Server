@@ -82,5 +82,23 @@ public class Product {
     public void clearImages() {
         this.productImages.clear();
     }
-}
 
+    public void removeImage(ProductImage productImage) {
+        if (productImage == null) return;
+
+        boolean removed = this.productImages.remove(productImage);
+        if (removed) return;
+
+        final Long targetImageId = productImage.getImage() != null ? productImage.getImage().getId() : null;
+
+        if (targetImageId != null) {
+            this.productImages.removeIf(pi -> {
+                if (pi == null || pi.getImage() == null) return false;
+                final Long imgId = pi.getImage().getId();
+                return imgId != null && imgId.equals(targetImageId);
+            });
+        } else {
+            this.productImages.removeIf(pi -> pi.equals(productImage));
+        }
+    }
+}

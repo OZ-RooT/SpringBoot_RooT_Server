@@ -19,7 +19,6 @@ public class TranslationController {
 
     @PostMapping
     public ApiResponse<TranslationResponse> translate(@RequestBody @Valid TranslationRequest request) {
-        // 먼저 캐시 확인
         Optional<String> cached = translationService.getCachedTranslation(
                 request.getText(),
                 request.getTargetLanguage()

@@ -1,0 +1,15 @@
+/build
+/.gradle
+/out
+/target
+/.git
+/.idea
+*.iml
+.DS_Store
+**/*.class
+**/node_modules
+.env
+docker-compose.override.yml
+**/logs
+.gradle
+

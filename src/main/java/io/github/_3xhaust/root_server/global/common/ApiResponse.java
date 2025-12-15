@@ -1,18 +1,29 @@
 package io.github._3xhaust.root_server.global.common;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+@Schema(description = "Standard API response wrapper")
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ApiResponse<T> {
+
+    @Schema(description = "Response status", example = "true")
     private boolean success;
+
+    @Schema(description = "Response data")
     private T data;
+
+    @Schema(description = "Response message", example = "Operation successful")
     private String message;
+
+    @Schema(description = "Error code", example = "USER_NOT_FOUND")
     private String errorCode;
 
     public static <T> ApiResponse<T> ok(T data) {
@@ -42,14 +53,6 @@ public class ApiResponse<T> {
                 .success(false)
                 .message(message)
                 .errorCode(errorCode)
-                .build();
-    }
-
-    public static <T> ApiResponse<T> error(io.github._3xhaust.root_server.global.common.exception.ErrorCode errorCode) {
-        return ApiResponse.<T>builder()
-                .success(false)
-                .message(errorCode.getMessage())
-                .errorCode(errorCode.getCode())
                 .build();
     }
 }

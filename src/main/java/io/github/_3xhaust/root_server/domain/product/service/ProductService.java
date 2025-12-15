@@ -184,5 +184,54 @@ public class ProductService {
                 .map(ProductListResponse::of)
                 .toList();
     }
-}
 
+    public Page<ProductListResponse> searchProducts(String title, Double minPrice, Double maxPrice, int page, int limit, String sortBy, String direction) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.fromString(direction), sortBy));
+        Page<Product> products = productRepository.searchProducts(title, minPrice, maxPrice, pageable);
+        return products.map(ProductListResponse::of);
+    }
+
+    @Transactional
+    public void uploadProductImages(String email, Long productId, List<Long> imageIds) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
+
+        if (!product.getSeller().getId().equals(user.getId())) {
+            throw new ProductException(ProductErrorCode.UNAUTHORIZED_ACCESS, "productId=" + productId);
+        }
+
+        imageIds.stream().distinct().forEach(imageId -> {
+            Image image = imageRepository.findById(imageId)
+                    .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
+            ProductImage productImage = ProductImage.builder()
+                    .product(product)
+                    .image(image)
+                    .build();
+            productImageRepository.save(productImage);
+            product.addImage(productImage);
+        });
+    }
+
+    @Transactional
+    public void deleteProductImage(String email, Long productId, Long imageId) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
+
+        if (!product.getSeller().getId().equals(user.getId())) {
+            throw new ProductException(ProductErrorCode.UNAUTHORIZED_ACCESS, "productId=" + productId);
+        }
+
+        ProductImage productImage = productImageRepository.findByProductIdAndImageId(productId, imageId);
+        if (productImage == null) {
+            throw new IllegalArgumentException("Image not found for product: " + imageId);
+        }
+        productImageRepository.delete(productImage);
+        product.removeImage(productImage);
+    }
+}

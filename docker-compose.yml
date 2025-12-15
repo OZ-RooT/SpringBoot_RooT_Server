@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  root-springboot:
+    build: .
+    image: root_server:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      root-redis:
+        condition: service_healthy
+      root-elasticsearch:
+        condition: service_healthy
+      root-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  root-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "1004"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "1004", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  root-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.3
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://localhost:9200/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  root-postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=root_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data:
+  esdata:
+  pgdata:

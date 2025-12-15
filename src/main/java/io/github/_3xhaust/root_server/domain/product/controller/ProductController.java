@@ -13,6 +13,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
@@ -75,5 +77,41 @@ public class ProductController {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         productService.toggleFavorite(userDetails.getUsername(), productId);
         return ApiResponse.ok(null, "관심 상품이 변경되었습니다.");
+    }
+
+    @GetMapping("/search")
+    public ApiResponse<Page<ProductListResponse>> searchProducts(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) Double minPrice,
+            @RequestParam(required = false) Double maxPrice,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction
+    ) {
+        Page<ProductListResponse> products = productService.searchProducts(title, minPrice, maxPrice, page, limit, sortBy, direction);
+        return ApiResponse.ok(products);
+    }
+
+    @PostMapping("/{productId}/images")
+    public ApiResponse<Void> uploadProductImages(
+            Authentication authentication,
+            @PathVariable Long productId,
+            @RequestParam List<Long> imageIds
+    ) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        productService.uploadProductImages(userDetails.getUsername(), productId, imageIds);
+        return ApiResponse.ok(null, "이미지가 업로드되었습니다.");
+    }
+
+    @DeleteMapping("/{productId}/images/{imageId}")
+    public ApiResponse<Void> deleteProductImage(
+            Authentication authentication,
+            @PathVariable Long productId,
+            @PathVariable Long imageId
+    ) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        productService.deleteProductImage(userDetails.getUsername(), productId, imageId);
+        return ApiResponse.ok(null, "이미지가 삭제되었습니다.");
     }
 }

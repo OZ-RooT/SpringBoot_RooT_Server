@@ -41,20 +41,16 @@ public class TranslationService {
             return text;
         }
 
-        // 원본 텍스트 + 대상 언어로 해시 생성
         String hash = generateHash(text, targetLanguage);
 
-        // 캐시에서 찾기
         Optional<TranslationCache> cached = translationCacheRepository.findByHash(hash);
         if (cached.isPresent()) {
             log.debug("Translation cache hit for hash: {}", hash);
             return cached.get().getTranslatedText();
         }
 
-        // Google Translate API 호출
         String translatedText = callGoogleTranslateApi(text, targetLanguage);
 
-        // 캐시에 저장
         TranslationCache cache = TranslationCache.builder()
                 .hash(hash)
                 .targetLanguage(targetLanguage)
@@ -86,7 +82,7 @@ public class TranslationService {
             }
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not found", e);
+            throw new IllegalStateException("SHA-256 algorithm not found", e);
         }
     }
 
@@ -101,7 +97,7 @@ public class TranslationService {
 
         try {
             URI uri = UriComponentsBuilder
-                    .fromHttpUrl("https://translation.googleapis.com/language/translate/v2")
+                    .fromUriString("https://translation.googleapis.com/language/translate/v2")
                     .queryParam("key", googleApiKey)
                     .queryParam("q", text)
                     .queryParam("target", targetLanguage)
@@ -114,7 +110,7 @@ public class TranslationService {
             JsonNode root = objectMapper.readTree(response);
             JsonNode translations = root.path("data").path("translations");
 
-            if (translations.isArray() && translations.size() > 0) {
+            if (!translations.isEmpty()) {
                 return translations.get(0).path("translatedText").asText();
             }
 
@@ -135,4 +131,3 @@ public class TranslationService {
                 .map(TranslationCache::getTranslatedText);
     }
 }
-

@@ -20,4 +20,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Query("SELECT p FROM Product p WHERE p.seller.id = :sellerId")
     Page<Product> findBySellerId(@Param("sellerId") Long sellerId, Pageable pageable);
+    @Query("SELECT p FROM Product p WHERE (:title IS NULL OR p.title LIKE %:title%) AND (:minPrice IS NULL OR p.price >= :minPrice) AND (:maxPrice IS NULL OR p.price <= :maxPrice)")
+    Page<Product> searchProducts(@Param("title") String title, @Param("minPrice") Double minPrice, @Param("maxPrice") Double maxPrice, Pageable pageable);
 }

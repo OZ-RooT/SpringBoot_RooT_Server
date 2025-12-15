@@ -45,7 +45,6 @@ public class RefreshTokenService {
         return redisTemplate.hasKey(key);
     }
 
-    // Deprecated: 기존 전체 키 스캔 방식은 성능/보안(Blocking) 문제로 사용 지양.
     @Deprecated
     public Optional<Long> getUserIdByToken(String rawToken) {
         String pattern = REFRESH_TOKEN_PREFIX + "*";

@@ -1,6 +1,5 @@
 package io.github._3xhaust.root_server.global.common.exception;
 
-import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.global.common.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -10,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,6 +44,12 @@ public class GlobalExceptionHandler {
         log.warn("Validation error: {}", message);
 
         return buildErrorResponse(CommonErrorCode.VALIDATION_ERROR, message);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
+        log.info("Static resource not found: {}", ex.getMessage());
+        return buildErrorResponse(CommonErrorCode.NOT_FOUND, null);
     }
 
     @ExceptionHandler(Exception.class)

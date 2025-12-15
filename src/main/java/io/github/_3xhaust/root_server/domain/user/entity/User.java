@@ -74,4 +74,8 @@ public class User {
         this.language = language;
         this.profileImage = profileImage;
     }
+
+    public String getUsername() {
+        return this.name;
+    }
 }
