@@ -27,7 +27,7 @@ public class SwaggerConfig {
                                 .url("https://github.com/OZ-RooT")))
                 .servers(List.of(
                         new Server().url("http://localhost:8080").description("Development server"),
-                        new Server().url("https://api-3xhaust.dev").description("Production server")
+                        new Server().url("https://api-root.3xhaust.dev").description("Production server")
                 ))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth",
