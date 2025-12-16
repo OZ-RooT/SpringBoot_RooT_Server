@@ -15,6 +15,8 @@ import io.github._3xhaust.root_server.domain.user.entity.User;
 import io.github._3xhaust.root_server.domain.user.exception.UserErrorCode;
 import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
+import io.github._3xhaust.root_server.domain.image.entity.Image;
+import io.github._3xhaust.root_server.domain.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final FavoriteUsedItemRepository favoriteUsedItemRepository;
     private final FavoriteGarageSaleRepository favoriteGarageSaleRepository;
+    private final ImageRepository imageRepository;
 
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
@@ -78,10 +81,15 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "id=" + id));
 
+        Image profileImage = null;
+        if (requestDTO.getProfileImageId() != null) {
+            profileImage = imageRepository.findById(requestDTO.getProfileImageId()).orElse(null);
+        }
+
         user.updateProfile(
                 requestDTO.getName(),
                 requestDTO.getLanguage(),
-                requestDTO.getProfileImage()
+                profileImage
         );
 
         return toDTO(user);

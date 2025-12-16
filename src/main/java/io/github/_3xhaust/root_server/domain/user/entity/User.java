@@ -70,8 +70,12 @@ public class User {
     }
 
     public void updateProfile(String name, String language, Image profileImage) {
-        this.name = name;
-        this.language = language;
+        if (name != null) {
+            this.name = name;
+        }
+        if (language != null) {
+            this.language = language;
+        }
         this.profileImage = profileImage;
     }
 
