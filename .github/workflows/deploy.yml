@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    if: github.repository == 'my-org/SpringBoot_RooT_Server'
+    if: github.repository == 'OZ-RooT/SpringBoot_RooT_Server'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
