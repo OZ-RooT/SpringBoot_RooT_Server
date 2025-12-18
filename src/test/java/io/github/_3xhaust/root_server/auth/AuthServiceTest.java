@@ -6,6 +6,7 @@ import io.github._3xhaust.root_server.domain.auth.dto.req.LoginRequest;
 import io.github._3xhaust.root_server.domain.auth.dto.req.SignupRequest;
 import io.github._3xhaust.root_server.domain.auth.dto.req.TokenRequest;
 import io.github._3xhaust.root_server.domain.image.dto.ImageUploadResponse;
+import io.github._3xhaust.root_server.global.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class AuthServiceTest {
+class AuthServiceTest extends IntegrationTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
