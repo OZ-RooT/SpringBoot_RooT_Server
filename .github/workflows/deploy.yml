@@ -6,7 +6,9 @@ on:
 
 jobs:
   test:
+    name: Test (Testcontainers)
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,12 +22,23 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Start Docker daemon
+        run: |
+          sudo systemctl start docker
+          docker info
+
+      - name: Pull PostgreSQL image
+        run: docker pull postgres:16-alpine
+
       - name: Run tests
-        run: ./gradlew test
+        run: ./gradlew test --no-daemon
 
   deploy:
+    name: Deploy to Server
     needs: test
+    if: github.repository == 'OZ-RooT/SpringBoot_RooT_Server'
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,7 +52,8 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          ssh -i ~/.ssh/id_ed25519 -p 2201 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 -p 2201 \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
             cd SpringBoot_RooT_Server/
             git pull origin main
