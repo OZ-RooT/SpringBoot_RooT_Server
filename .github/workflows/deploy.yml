@@ -6,7 +6,8 @@ on:
 
 jobs:
   test:
-    name: Test (Testcontainers)
+    name: Test (only main repo)
+    if: github.repository == 'OZ-RooT/SpringBoot_RooT_Server'
     runs-on: ubuntu-latest
 
     steps:
@@ -21,14 +22,6 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-
-      - name: Start Docker daemon
-        run: |
-          sudo systemctl start docker
-          docker info
-
-      - name: Pull PostgreSQL image
-        run: docker pull postgres:16-alpine
 
       - name: Run tests
         run: ./gradlew test --no-daemon
