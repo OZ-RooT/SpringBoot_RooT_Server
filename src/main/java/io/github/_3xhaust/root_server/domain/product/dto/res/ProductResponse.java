@@ -1,6 +1,8 @@
 package io.github._3xhaust.root_server.domain.product.dto.res;
 
+import io.github._3xhaust.root_server.domain.garagesale.entity.GarageSale;
 import io.github._3xhaust.root_server.domain.product.entity.Product;
+import io.github._3xhaust.root_server.domain.user.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -8,6 +10,17 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
+//@Builder
+//public Product(User seller, String title, Integer price, String description, String body, Short type, GarageSale garageSale) {
+//    this.seller = seller;
+//    this.title = title;
+//    this.price = price;
+//    this.description = description;
+//    this.body = body;
+//    this.type = type;
+//    this.garageSale = garageSale;
+//}
+
 
 @Getter
 @Builder
