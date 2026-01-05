@@ -2,10 +2,8 @@ package io.github._3xhaust.root_server.domain.community.entity;
 
 import io.github._3xhaust.root_server.domain.user.entity.User;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.Instant;
