@@ -114,4 +114,48 @@ public class ProductController {
         productService.deleteProductImage(userDetails.getUsername(), productId, imageId);
         return ApiResponse.ok((Void) null, "이미지가 삭제되었습니다.");
     }
+
+    // Elasticsearch 기반 검색 엔드포인트
+    @GetMapping("/used/search")
+    public ApiResponse<Page<ProductListResponse>> searchUsedProducts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) Integer minPrice,
+            @RequestParam(required = false) Integer maxPrice
+    ) {
+        Page<ProductListResponse> products = productService.searchUsedProductsFromElasticsearch(keyword, page, limit, minPrice, maxPrice);
+        return ApiResponse.ok(products);
+    }
+
+    @GetMapping("/used")
+    public ApiResponse<Page<ProductListResponse>> getUsedProducts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir
+    ) {
+        Page<ProductListResponse> products = productService.getUsedProductsFromElasticsearch(page, limit, sortBy, sortDir);
+        return ApiResponse.ok(products);
+    }
+
+    @GetMapping("/tags")
+    public ApiResponse<Page<ProductListResponse>> getProductsByTag(
+            @RequestParam String tag,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        Page<ProductListResponse> products = productService.getProductsByTagFromElasticsearch(tag, page, limit);
+        return ApiResponse.ok(products);
+    }
+
+    @GetMapping("/tags/multiple")
+    public ApiResponse<Page<ProductListResponse>> getProductsByTags(
+            @RequestParam List<String> tags,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        Page<ProductListResponse> products = productService.getProductsByTagsFromElasticsearch(tags, page, limit);
+        return ApiResponse.ok(products);
+    }
 }

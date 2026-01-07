@@ -22,6 +22,8 @@ import io.github._3xhaust.root_server.domain.user.entity.User;
 import io.github._3xhaust.root_server.domain.user.exception.UserErrorCode;
 import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.ProductDocument;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.repository.ProductSearchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +45,9 @@ public class ProductService {
     private final UserRepository userRepository;
     private final GarageSaleRepository garageSaleRepository;
     private final ImageRepository imageRepository;
+    private final ProductSearchRepository productSearchRepository;
+
+    private static final short TYPE_USED = 0;
 
     public Page<ProductListResponse> getProducts(Short type, int page, int limit) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -233,5 +238,66 @@ public class ProductService {
         }
         productImageRepository.delete(productImage);
         product.removeImage(productImage);
+    }
+
+    public Page<ProductListResponse> getUsedProductsFromElasticsearch(int page, int limit, String sortBy, String sortDir) {
+        Sort sort = createSort(sortBy, sortDir);
+        Pageable pageable = PageRequest.of(page - 1, limit, sort);
+
+        return productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable)
+                .map(this::convertToProductListResponse);
+    }
+
+    public Page<ProductListResponse> searchUsedProductsFromElasticsearch(String keyword, int page, int limit,
+                                                                          Integer minPrice, Integer maxPrice) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<ProductDocument> result;
+        if (minPrice != null && maxPrice != null) {
+            result = productSearchRepository.findByPriceRangeAndType(minPrice, maxPrice, TYPE_USED, pageable);
+        } else if (keyword != null && !keyword.isBlank()) {
+            result = productSearchRepository.searchByKeywordAndType(keyword, TYPE_USED, pageable);
+        } else {
+            result = productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable);
+        }
+
+        return result.map(this::convertToProductListResponse);
+    }
+
+    public Page<ProductListResponse> getProductsByTagFromElasticsearch(String tag, int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return productSearchRepository.findByTagsContainingAndIsActiveTrue(tag, pageable)
+                .map(this::convertToProductListResponse);
+    }
+
+    public Page<ProductListResponse> getProductsByTagsFromElasticsearch(List<String> tags, int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return productSearchRepository.findByTagsInAndIsActiveTrue(tags, pageable)
+                .map(this::convertToProductListResponse);
+    }
+
+    private ProductListResponse convertToProductListResponse(ProductDocument document) {
+        String thumbnailUrl = document.getImageUrls() != null && !document.getImageUrls().isEmpty()
+                ? document.getImageUrls().get(0) : null;
+
+        return ProductListResponse.builder()
+                .id(document.getProductId())
+                .title(document.getTitle())
+                .price(document.getPrice())
+                .description(document.getDescription())
+                .type(document.getType())
+                .thumbnailUrl(thumbnailUrl)
+                .createdAt(document.getCreatedAt())
+                .seller(ProductListResponse.SellerInfo.builder()
+                        .id(document.getSellerId())
+                        .name(document.getSellerName())
+                        .build())
+                .build();
+    }
+
+    private Sort createSort(String sortBy, String sortDir) {
+        String field = sortBy != null ? sortBy : "createdAt";
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return Sort.by(direction, field);
     }
 }

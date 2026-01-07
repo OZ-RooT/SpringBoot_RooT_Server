@@ -1,5 +1,6 @@
-package io.github._3xhaust.root_server.domain.home.dto.res;
+package io.github._3xhaust.root_server.domain.garagesale.dto.res;
 
+import io.github._3xhaust.root_server.domain.product.dto.res.ProductListResponse;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -8,8 +9,8 @@ import java.util.List;
 @Getter
 @Builder
 public class GarageSaleDetailResponse {
-    private HomeGarageSaleResponse garageSale;
-    private List<HomeProductResponse> products;
+    private GarageSaleListResponse garageSale;
+    private List<ProductListResponse> products;
     private PageInfo pageInfo;
 
     @Getter

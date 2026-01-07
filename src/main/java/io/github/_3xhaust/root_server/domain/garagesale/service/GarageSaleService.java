@@ -10,6 +10,7 @@ import io.github._3xhaust.root_server.domain.garagesale.exception.GarageSaleErro
 import io.github._3xhaust.root_server.domain.garagesale.exception.GarageSaleException;
 import io.github._3xhaust.root_server.domain.garagesale.repository.FavoriteGarageSaleRepository;
 import io.github._3xhaust.root_server.domain.garagesale.repository.GarageSaleRepository;
+import io.github._3xhaust.root_server.domain.product.dto.res.ProductListResponse;
 import io.github._3xhaust.root_server.domain.product.dto.res.ProductResponse;
 import io.github._3xhaust.root_server.domain.product.entity.FavoriteUsedItem;
 import io.github._3xhaust.root_server.domain.product.entity.Product;
@@ -21,10 +22,20 @@ import io.github._3xhaust.root_server.domain.user.entity.User;
 import io.github._3xhaust.root_server.domain.user.exception.UserErrorCode;
 import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
+import io.github._3xhaust.root_server.domain.garagesale.dto.res.GarageSaleDetailResponse;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.GarageSaleDocument;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.ProductDocument;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.repository.GarageSaleSearchRepository;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.repository.ProductSearchRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -37,6 +48,8 @@ public class GarageSaleService {
     private final ProductRepository productRepository;
     private final FavoriteUsedItemRepository favoriteUsedItemRepository;
     private final UserRepository userRepository;
+    private final GarageSaleSearchRepository garageSaleSearchRepository;
+    private final ProductSearchRepository productSearchRepository;
 
     public List<GarageSaleListResponse> getAllGarageSales(Double lat, Double lng, Double radius) {
         List<GarageSale> garageSales;
@@ -168,6 +181,127 @@ public class GarageSaleService {
         return garageSales.stream()
                 .map(GarageSaleListResponse::of)
                 .toList();
+    }
+
+    public Page<GarageSaleListResponse> getGarageSalesFromElasticsearch(int page, int limit, String sortBy, String sortDir) {
+        Sort sort = createSort(sortBy, sortDir);
+        Pageable pageable = PageRequest.of(page - 1, limit, sort);
+
+        return garageSaleSearchRepository.findByIsActiveTrue(pageable)
+                .map(this::convertToGarageSaleListResponse);
+    }
+
+    public GarageSaleDetailResponse getGarageSaleDetailFromElasticsearch(Long garageSaleId, int productPage, int productLimit) {
+        GarageSaleDocument garageSaleDoc = garageSaleSearchRepository
+                .findById(GarageSaleDocument.generateId(garageSaleId))
+                .orElseThrow(() -> new GarageSaleException(GarageSaleErrorCode.GARAGE_SALE_NOT_FOUND, "id=" + garageSaleId));
+
+        Pageable pageable = PageRequest.of(productPage - 1, productLimit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<ProductDocument> productPage2 = productSearchRepository.findByGarageSaleIdAndIsActiveTrue(garageSaleId, pageable);
+
+        return GarageSaleDetailResponse.builder()
+                .garageSale(convertToGarageSaleListResponse(garageSaleDoc))
+                .products(productPage2.getContent().stream()
+                        .map(this::convertToProductListResponse)
+                        .toList())
+                .pageInfo(GarageSaleDetailResponse.PageInfo.builder()
+                        .currentPage(productPage)
+                        .totalPages(productPage2.getTotalPages())
+                        .totalElements(productPage2.getTotalElements())
+                        .hasNext(productPage2.hasNext())
+                        .build())
+                .build();
+    }
+
+    public Page<GarageSaleListResponse> searchNearbyGarageSalesFromElasticsearch(Double latitude, Double longitude,
+                                                                                    Double radiusKm, int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit);
+        double radius = radiusKm != null ? radiusKm : 10.0;
+
+        return garageSaleSearchRepository.findByLocationNear(latitude, longitude, radius, pageable)
+                .map(doc -> {
+                    double distance = calculateDistance(latitude, longitude, doc.getLatitude(), doc.getLongitude());
+                    GarageSaleListResponse response = convertToGarageSaleListResponse(doc);
+                    return response;
+                });
+    }
+
+    public Page<GarageSaleListResponse> getCurrentGarageSalesFromElasticsearch(int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.ASC, "endTime"));
+        return garageSaleSearchRepository.findCurrentlyActive(Instant.now(), pageable)
+                .map(this::convertToGarageSaleListResponse);
+    }
+
+    public Page<GarageSaleListResponse> getGarageSalesByDateRangeFromElasticsearch(Instant startDate, Instant endDate,
+                                                                                      int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.ASC, "startTime"));
+        return garageSaleSearchRepository.findByDateRange(startDate, endDate, pageable)
+                .map(this::convertToGarageSaleListResponse);
+    }
+
+    public Page<GarageSaleListResponse> getGarageSalesByTagFromElasticsearch(String tag, int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return garageSaleSearchRepository.findByTagsContainingAndIsActiveTrue(tag, pageable)
+                .map(this::convertToGarageSaleListResponse);
+    }
+
+    public Page<GarageSaleListResponse> searchGarageSalesByKeyword(String keyword, int page, int limit) {
+        Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return garageSaleSearchRepository.searchByKeyword(keyword, pageable)
+                .map(this::convertToGarageSaleListResponse);
+    }
+
+    private GarageSaleListResponse convertToGarageSaleListResponse(GarageSaleDocument document) {
+        return GarageSaleListResponse.builder()
+                .id(document.getGarageSaleId())
+                .name(document.getName())
+                .latitude(document.getLatitude())
+                .longitude(document.getLongitude())
+                .startTime(document.getStartTime())
+                .endTime(document.getEndTime())
+                .owner(GarageSaleListResponse.OwnerInfo.builder()
+                        .id(document.getOwnerId())
+                        .name(document.getOwnerName())
+                        .build())
+                .productCount(document.getProductCount())
+                .createdAt(document.getCreatedAt())
+                .build();
+    }
+
+    private ProductListResponse convertToProductListResponse(ProductDocument document) {
+        String thumbnailUrl = document.getImageUrls() != null && !document.getImageUrls().isEmpty()
+                ? document.getImageUrls().get(0) : null;
+
+        return ProductListResponse.builder()
+                .id(document.getProductId())
+                .title(document.getTitle())
+                .price(document.getPrice())
+                .description(document.getDescription())
+                .type(document.getType())
+                .thumbnailUrl(thumbnailUrl)
+                .createdAt(document.getCreatedAt())
+                .seller(ProductListResponse.SellerInfo.builder()
+                        .id(document.getSellerId())
+                        .name(document.getSellerName())
+                        .build())
+                .build();
+    }
+
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371;
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    private Sort createSort(String sortBy, String sortDir) {
+        String field = sortBy != null ? sortBy : "createdAt";
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return Sort.by(direction, field);
     }
 }
 
