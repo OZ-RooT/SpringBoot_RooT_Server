@@ -1,11 +1,18 @@
 package io.github._3xhaust.root_server.domain.product.controller;
 
+import io.github._3xhaust.root_server.domain.history.service.HistoryService;
 import io.github._3xhaust.root_server.domain.product.dto.req.CreateProductRequest;
 import io.github._3xhaust.root_server.domain.product.dto.req.UpdateProductRequest;
 import io.github._3xhaust.root_server.domain.product.dto.res.ProductListResponse;
 import io.github._3xhaust.root_server.domain.product.dto.res.ProductResponse;
 import io.github._3xhaust.root_server.domain.product.service.ProductService;
 import io.github._3xhaust.root_server.global.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -15,12 +22,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Products", description = "Product management and search APIs for Australian marketplace")
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 public class ProductController {
 
     private final ProductService productService;
+    private final HistoryService historyService;
 
     @GetMapping
     public ApiResponse<Page<ProductListResponse>> getProducts(
@@ -33,9 +42,41 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}")
-    public ApiResponse<ProductResponse> getProductById(@PathVariable Long productId) {
+    public ApiResponse<ProductResponse> getProductById(
+            Authentication authentication,
+            @PathVariable Long productId
+    ) {
+        String userEmail = authentication != null
+                ? ((UserDetails) authentication.getPrincipal()).getUsername()
+                : null;
+        historyService.recordView(userEmail, null, productId);
         ProductResponse product = productService.getProductById(productId);
         return ApiResponse.ok(product);
+    }
+
+    @Operation(
+            summary = "Get similar products",
+            description = "Returns similar products based on tags, price range (±30%), and title/description similarity. Uses Elasticsearch for intelligent matching optimized for Australian marketplace."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieved similar products",
+                    content = @Content(schema = @Schema(implementation = ProductListResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Product not found"
+            )
+    })
+    @GetMapping("/{productId}/similar")
+    public ApiResponse<Page<ProductListResponse>> getSimilarProducts(
+            @Parameter(description = "Product ID to find similar items for", example = "1", required = true) @PathVariable Long productId,
+            @Parameter(description = "Page number (1-indexed)", example = "1") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "Number of items per page", example = "12") @RequestParam(defaultValue = "12") int limit
+    ) {
+        Page<ProductListResponse> similarProducts = productService.getSimilarProducts(productId, page, limit);
+        return ApiResponse.ok(similarProducts);
     }
 
     @PostMapping

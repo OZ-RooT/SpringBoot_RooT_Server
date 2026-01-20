@@ -21,5 +21,8 @@ public interface FavoriteUsedItemRepository extends JpaRepository<FavoriteUsedIt
     boolean existsByUserIdAndProductId(Long userId, Long productId);
 
     void deleteByUserIdAndProductId(Long userId, Long productId);
+
+    @Query("SELECT COUNT(f) FROM FavoriteUsedItem f WHERE f.product.id = :productId")
+    Long countByProductId(@Param("productId") Long productId);
 }
 

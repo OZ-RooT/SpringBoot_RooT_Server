@@ -17,11 +17,15 @@ public class UpdateProductRequest {
     private String title;
 
     @Min(value = 0, message = "가격은 0 이상이어야 합니다.")
-    private Integer price;
+    private Double price;
 
     private String description;
 
     private String body;
+
+    private Double latitude;
+
+    private Double longitude;
 
     private List<Long> imageIds;
 }

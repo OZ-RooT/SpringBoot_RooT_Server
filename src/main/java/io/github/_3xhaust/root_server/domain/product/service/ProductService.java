@@ -88,6 +88,8 @@ public class ProductService {
                 .body(request.getBody())
                 .type(request.getType())
                 .garageSale(garageSale)
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
                 .build();
 
         Product savedProduct = productRepository.save(product);
@@ -124,7 +126,9 @@ public class ProductService {
                 request.getTitle() != null ? request.getTitle() : product.getTitle(),
                 request.getPrice() != null ? request.getPrice() : product.getPrice(),
                 request.getDescription() != null ? request.getDescription() : product.getDescription(),
-                request.getBody() != null ? request.getBody() : product.getBody()
+                request.getBody() != null ? request.getBody() : product.getBody(),
+                request.getLatitude() != null ? request.getLatitude() : product.getLatitude(),
+                request.getLongitude() != null ? request.getLongitude() : product.getLongitude()
         );
 
         if (request.getImageIds() != null) {
@@ -274,6 +278,45 @@ public class ProductService {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         return productSearchRepository.findByTagsInAndIsActiveTrue(tags, pageable)
                 .map(this::convertToProductListResponse);
+    }
+
+    public Page<ProductListResponse> getSimilarProducts(Long productId, int page, int limit) {
+        ProductDocument productDoc = productSearchRepository.findById(ProductDocument.generateId(productId))
+                .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
+
+        if (productDoc.getIsActive() == null || !productDoc.getIsActive()) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), 
+                    PageRequest.of(page - 1, limit), 0);
+        }
+
+        List<String> tags = productDoc.getTags() != null && !productDoc.getTags().isEmpty() 
+                ? productDoc.getTags() 
+                : List.of();
+        Double price = productDoc.getPrice();
+        String title = productDoc.getTitle() != null ? productDoc.getTitle() : "";
+        String description = productDoc.getDescription() != null ? productDoc.getDescription() : "";
+        String searchText = (title + " " + description).trim();
+
+        Integer minPrice = price != null ? (int) (price * 0.7) : null;
+        Integer maxPrice = price != null ? (int) (price * 1.3) : null;
+
+        if (tags.isEmpty() && searchText.isBlank() && minPrice == null) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), 
+                    PageRequest.of(page - 1, limit), 0);
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, limit);
+        Page<ProductDocument> similarProducts = productSearchRepository.findSimilarProducts(
+                productId,
+                productDoc.getType(),
+                tags,
+                minPrice,
+                maxPrice,
+                searchText.isBlank() ? "*" : searchText,
+                pageable
+        );
+
+        return similarProducts.map(this::convertToProductListResponse);
     }
 
     private ProductListResponse convertToProductListResponse(ProductDocument document) {

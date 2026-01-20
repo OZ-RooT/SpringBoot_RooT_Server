@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface GarageSaleTagRepository extends JpaRepository<GarageSaleTag, GarageSaleTagId> {
@@ -17,5 +18,18 @@ public interface GarageSaleTagRepository extends JpaRepository<GarageSaleTag, Ga
 
     @Query("SELECT gst.tag.name FROM GarageSaleTag gst WHERE gst.garageSale.id = :garageSaleId")
     List<String> findTagNamesByGarageSaleId(@Param("garageSaleId") Long garageSaleId);
+
+    @Query("SELECT DISTINCT gst.tag.name FROM GarageSaleTag gst " +
+           "WHERE gst.garageSale.id IN " +
+           "(SELECT f.garageSale.id FROM io.github._3xhaust.root_server.domain.garagesale.entity.FavoriteGarageSale f " +
+           "WHERE f.user.id = :userId)")
+    List<String> findTagNamesByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT gst.tag.name FROM GarageSaleTag gst")
+    List<String> findAllTagNames();
+
+    @Query("SELECT gst.tag.name FROM GarageSaleTag gst " +
+           "WHERE gst.garageSale.createdAt >= :after")
+    List<String> findTagNamesByCreatedAtAfter(@Param("after") Instant after);
 }
 

@@ -21,5 +21,8 @@ public interface FavoriteGarageSaleRepository extends JpaRepository<FavoriteGara
     boolean existsByUserIdAndGarageSaleId(Long userId, Long garageSaleId);
 
     void deleteByUserIdAndGarageSaleId(Long userId, Long garageSaleId);
+
+    @Query("SELECT COUNT(f) FROM FavoriteGarageSale f WHERE f.garageSale.id = :garageSaleId")
+    Long countByGarageSaleId(@Param("garageSaleId") Long garageSaleId);
 }
 

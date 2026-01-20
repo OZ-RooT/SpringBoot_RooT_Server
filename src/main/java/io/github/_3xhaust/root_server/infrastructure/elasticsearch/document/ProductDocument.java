@@ -37,7 +37,7 @@ public class ProductDocument {
     private String title;
 
     @Field(type = FieldType.Integer)
-    private Integer price;
+    private Double price;
 
     @Field(type = FieldType.Text, analyzer = "korean")
     private String description;
@@ -47,6 +47,15 @@ public class ProductDocument {
 
     @Field(type = FieldType.Long)
     private Long garageSaleId;
+
+    @Field(type = FieldType.Double)
+    private Double latitude;
+
+    @Field(type = FieldType.Double)
+    private Double longitude;
+
+    @GeoPointField
+    private GeoPoint location;
 
     @Field(type = FieldType.Keyword)
     private List<String> tags;
@@ -66,6 +75,15 @@ public class ProductDocument {
 
     public String getSellerUsername() {
         return this.sellerName;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GeoPoint {
+        private Double lat;
+        private Double lon;
     }
 
     public static class ProductDocumentBuilder {

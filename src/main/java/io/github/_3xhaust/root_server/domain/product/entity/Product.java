@@ -30,7 +30,7 @@ public class Product {
     private String title;
 
     @Column(nullable = false)
-    private Integer price;
+    private Double price;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -45,6 +45,12 @@ public class Product {
     @JoinColumn(name = "garage_sale_id")
     private GarageSale garageSale;
 
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> productImages = new ArrayList<>();
 
@@ -53,7 +59,7 @@ public class Product {
     private Instant createdAt;
 
     @Builder
-    public Product(User seller, String title, Integer price, String description, String body, Short type, GarageSale garageSale) {
+    public Product(User seller, String title, Double price, String description, String body, Short type, GarageSale garageSale, Double latitude, Double longitude) {
         this.seller = seller;
         this.title = title;
         this.price = price;
@@ -61,6 +67,8 @@ public class Product {
         this.body = body;
         this.type = type;
         this.garageSale = garageSale;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     @PrePersist
@@ -68,11 +76,13 @@ public class Product {
         this.createdAt = Instant.now();
     }
 
-    public void update(String title, Integer price, String description, String body) {
+    public void update(String title, Double price, String description, String body, Double latitude, Double longitude) {
         this.title = title;
         this.price = price;
         this.description = description;
         this.body = body;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public void addImage(ProductImage productImage) {

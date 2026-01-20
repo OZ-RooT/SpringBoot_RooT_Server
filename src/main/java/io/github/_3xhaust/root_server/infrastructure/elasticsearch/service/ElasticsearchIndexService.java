@@ -29,7 +29,15 @@ public class ElasticsearchIndexService {
                     .map(img -> img.getImage().getUrl())
                     .toList();
 
-            ProductDocument document = ProductDocument.builder()
+            Double latitude = product.getLatitude();
+            Double longitude = product.getLongitude();
+
+            if (latitude == null && product.getGarageSale() != null) {
+                latitude = product.getGarageSale().getLatitude();
+                longitude = product.getGarageSale().getLongitude();
+            }
+
+            ProductDocument.ProductDocumentBuilder builder = ProductDocument.builder()
                     .id(ProductDocument.generateId(product.getId()))
                     .productId(product.getId())
                     .sellerId(product.getSeller().getId())
@@ -43,7 +51,17 @@ public class ElasticsearchIndexService {
                     .imageUrls(imageUrls)
                     .createdAt(product.getCreatedAt())
                     .isActive(true)
-                    .build();
+                    .latitude(latitude)
+                    .longitude(longitude);
+
+            if (latitude != null && longitude != null) {
+                builder.location(ProductDocument.GeoPoint.builder()
+                        .lat(latitude)
+                        .lon(longitude)
+                        .build());
+            }
+
+            ProductDocument document = builder.build();
 
             productSearchRepository.save(document);
             log.info("Product indexed: {}", product.getId());
@@ -75,6 +93,9 @@ public class ElasticsearchIndexService {
                                 .description(doc.getDescription())
                                 .type(doc.getType())
                                 .garageSaleId(doc.getGarageSaleId())
+                                .latitude(doc.getLatitude())
+                                .longitude(doc.getLongitude())
+                                .location(doc.getLocation())
                                 .tags(doc.getTags())
                                 .imageUrls(doc.getImageUrls())
                                 .createdAt(doc.getCreatedAt())

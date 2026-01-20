@@ -15,7 +15,7 @@ import java.time.Instant;
 public class ProductListResponse {
     private Long id;
     private String title;
-    private Integer price;
+    private Double price;
     private String description;
     private Short type;
     private String thumbnailUrl;
