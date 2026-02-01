@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Getter
 @Builder
@@ -17,8 +19,10 @@ public class GarageSaleListResponse {
     private String name;
     private Double latitude;
     private Double longitude;
-    private Instant startTime;
-    private Instant endTime;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private LocalTime startTime;
+    private LocalTime endTime;
     private OwnerInfo owner;
     private Integer productCount;
     private Instant createdAt;
@@ -38,6 +42,8 @@ public class GarageSaleListResponse {
                 .name(garageSale.getName())
                 .latitude(garageSale.getLatitude())
                 .longitude(garageSale.getLongitude())
+                .startDate(garageSale.getStartDate())
+                .endDate(garageSale.getEndDate())
                 .startTime(garageSale.getStartTime())
                 .endTime(garageSale.getEndTime())
                 .owner(OwnerInfo.builder()

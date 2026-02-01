@@ -24,6 +24,7 @@ import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
 import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.ProductDocument;
 import io.github._3xhaust.root_server.infrastructure.elasticsearch.repository.ProductSearchRepository;
+import io.github._3xhaust.root_server.infrastructure.redis.service.RedisCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,6 +33,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 @Service
@@ -46,8 +48,12 @@ public class ProductService {
     private final GarageSaleRepository garageSaleRepository;
     private final ImageRepository imageRepository;
     private final ProductSearchRepository productSearchRepository;
+    private final RedisCacheService redisCacheService;
 
     private static final short TYPE_USED = 0;
+    private static final String CACHE_PREFIX_PRODUCT = "product:";
+    private static final String CACHE_PREFIX_PRODUCT_LIST = "product:list:";
+    private static final Duration CACHE_TTL = Duration.ofHours(1);
 
     public Page<ProductListResponse> getProducts(Short type, int page, int limit, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -66,10 +72,17 @@ public class ProductService {
     }
 
     public ProductResponse getProductById(Long productId, Long userId) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
-        Boolean isFavorite = userId != null && favoriteUsedItemRepository.existsByUserIdAndProductId(userId, productId);
-        return ProductResponse.of(product, isFavorite);
+        String cacheKey = CACHE_PREFIX_PRODUCT + productId + ":" + (userId != null ? userId : "null");
+        
+        return redisCacheService.get(cacheKey, ProductResponse.class)
+                .orElseGet(() -> {
+                    Product product = productRepository.findById(productId)
+                            .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
+                    Boolean isFavorite = userId != null && favoriteUsedItemRepository.existsByUserIdAndProductId(userId, productId);
+                    ProductResponse response = ProductResponse.of(product, isFavorite);
+                    redisCacheService.set(cacheKey, response, CACHE_TTL);
+                    return response;
+                });
     }
 
     @Transactional
@@ -97,6 +110,8 @@ public class ProductService {
                 .build();
 
         Product savedProduct = productRepository.save(product);
+        
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT_LIST + "*");
 
         if (request.getImageIds() != null && !request.getImageIds().isEmpty()) {
             for (Long imageId : request.getImageIds()) {
@@ -135,6 +150,9 @@ public class ProductService {
                 request.getLatitude() != null ? request.getLatitude() : product.getLatitude(),
                 request.getLongitude() != null ? request.getLongitude() : product.getLongitude()
         );
+        
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT + productId + ":*");
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT_LIST + "*");
 
         if (request.getImageIds() != null) {
             productImageRepository.deleteByProductId(productId);
@@ -169,6 +187,8 @@ public class ProductService {
         }
 
         productRepository.delete(product);
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT + productId + ":*");
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT_LIST + "*");
     }
 
     @Transactional
@@ -188,6 +208,8 @@ public class ProductService {
                     .build();
             favoriteUsedItemRepository.save(favorite);
         }
+        
+        redisCacheService.delete(CACHE_PREFIX_PRODUCT + productId + ":" + user.getId());
     }
 
     public List<ProductListResponse> getFavoriteProducts(String name) {

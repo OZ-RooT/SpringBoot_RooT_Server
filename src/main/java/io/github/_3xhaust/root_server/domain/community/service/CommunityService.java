@@ -16,7 +16,9 @@ import io.github._3xhaust.root_server.domain.user.entity.User;
 import io.github._3xhaust.root_server.domain.user.exception.UserErrorCode;
 import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
+import io.github._3xhaust.root_server.infrastructure.redis.service.RedisCacheService;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,10 @@ public class CommunityService {
     private final CommunityTagRepository communityTagRepository;
     private final TagRepository tagRepository;
     private final UserRepository userRepository;
+    private final RedisCacheService redisCacheService;
+
+    private static final String CACHE_PREFIX_COMMUNITY = "community:";
+    private static final Duration CACHE_TTL = Duration.ofHours(1);
 
     public Page<CommunityListResponse> getCommunities(int page, int limit) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -44,20 +50,26 @@ public class CommunityService {
     }
 
     public CommunityResponse getCommunityById(Long id) {
-        Community community = communityRepository.findById(id)
-                .orElseThrow(() -> new CommunityException(CommunityErrorCode.COMMUNITY_NOT_FOUND, "id=" + id));
-        CommunityResponse response = CommunityResponse.of(community);
-        List<String> tagNames = communityTagRepository.findTagNamesByCommunityId(id);
-        return CommunityResponse.builder()
-                .id(response.getId())
-                .owner(response.getOwner())
-                .name(response.getName())
-                .description(response.getDescription())
-                .points(response.getPoints())
-                .gradeLevel(response.getGradeLevel())
-                .tags(tagNames)
-                .createdAt(response.getCreatedAt())
-                .build();
+        String cacheKey = CACHE_PREFIX_COMMUNITY + id;
+        return redisCacheService.get(cacheKey, CommunityResponse.class)
+                .orElseGet(() -> {
+                    Community community = communityRepository.findById(id)
+                            .orElseThrow(() -> new CommunityException(CommunityErrorCode.COMMUNITY_NOT_FOUND, "id=" + id));
+                    CommunityResponse response = CommunityResponse.of(community);
+                    List<String> tagNames = communityTagRepository.findTagNamesByCommunityId(id);
+                    CommunityResponse result = CommunityResponse.builder()
+                            .id(response.getId())
+                            .owner(response.getOwner())
+                            .name(response.getName())
+                            .description(response.getDescription())
+                            .points(response.getPoints())
+                            .gradeLevel(response.getGradeLevel())
+                            .tags(tagNames)
+                            .createdAt(response.getCreatedAt())
+                            .build();
+                    redisCacheService.set(cacheKey, result, CACHE_TTL);
+                    return result;
+                });
     }
 
     @Transactional
@@ -95,6 +107,7 @@ public class CommunityService {
         }
 
         community.update(request.getName(), request.getDescription());
+        redisCacheService.delete(CACHE_PREFIX_COMMUNITY + id);
         return CommunityResponse.of(community);
     }
 
@@ -111,6 +124,7 @@ public class CommunityService {
         }
 
         communityRepository.delete(community);
+        redisCacheService.delete(CACHE_PREFIX_COMMUNITY + id);
     }
 
     @Transactional

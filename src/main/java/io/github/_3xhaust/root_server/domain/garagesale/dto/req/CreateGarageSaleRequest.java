@@ -7,7 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Getter
 @Builder
@@ -24,9 +25,15 @@ public class CreateGarageSaleRequest {
     @NotNull(message = "경도는 필수입니다.")
     private Double longitude;
 
+    @NotNull(message = "시작 날짜는 필수입니다.")
+    private LocalDate startDate;
+
+    @NotNull(message = "종료 날짜는 필수입니다.")
+    private LocalDate endDate;
+
     @NotNull(message = "시작 시간은 필수입니다.")
-    private Instant startTime;
+    private LocalTime startTime;
 
     @NotNull(message = "종료 시간은 필수입니다.")
-    private Instant endTime;
+    private LocalTime endTime;
 }
