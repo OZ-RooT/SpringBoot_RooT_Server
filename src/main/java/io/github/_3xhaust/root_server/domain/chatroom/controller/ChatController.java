@@ -111,22 +111,89 @@ public class ChatController {
     }
 
     @GetMapping("/rooms")
-    public ResponseEntity<List<ChatRoomDTO>> getChatRooms(Authentication authentication) {
+    public ResponseEntity<List<ChatRoomDTO>> getChatRooms(
+            @RequestParam(required = false, defaultValue = "all") String filter,
+            Authentication authentication) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         User user = userRepository.findByName(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         List<ChatRoomDTO> chatRooms = chatService.getChatRoomsByUserId(user.getId());
-        return ResponseEntity.ok(chatRooms);
+        
+        List<ChatRoomDTO> chatRoomsWithUnread = chatRooms.stream()
+                .map(chatRoom -> {
+                    long unreadCount = chatWebSocketHandler.getUnreadCount(chatRoom.getId(), user.getId());
+                    return ChatRoomDTO.builder()
+                            .id(chatRoom.getId())
+                            .productId(chatRoom.getProductId())
+                            .productTitle(chatRoom.getProductTitle())
+                            .sellerId(chatRoom.getSellerId())
+                            .sellerName(chatRoom.getSellerName())
+                            .buyerId(chatRoom.getBuyerId())
+                            .buyerName(chatRoom.getBuyerName())
+                            .createdAt(chatRoom.getCreatedAt())
+                            .unreadCount(unreadCount)
+                            .build();
+                })
+                .filter(chatRoom -> {
+                    try {
+                        io.github._3xhaust.root_server.domain.chatroom.enums.ChatFilter chatFilter = 
+                            io.github._3xhaust.root_server.domain.chatroom.enums.ChatFilter.valueOf(filter.toLowerCase());
+                        
+                        switch (chatFilter) {
+                            case all:
+                                return true;
+                            case unread:
+                                return chatRoom.getUnreadCount() != null && chatRoom.getUnreadCount() > 0;
+                            case buying:
+                                return chatRoom.getBuyerId().equals(user.getId());
+                            case selling:
+                                return chatRoom.getSellerId().equals(user.getId());
+                            case reserved:
+                                Product product = productRepository.findById(chatRoom.getProductId()).orElse(null);
+                                return product != null && isReserved(product);
+                            case completed:
+                                Product product2 = productRepository.findById(chatRoom.getProductId()).orElse(null);
+                                return product2 != null && isCompleted(product2);
+                            default:
+                                return true;
+                        }
+                    } catch (IllegalArgumentException e) {
+                        return true;
+                    }
+                })
+                .collect(java.util.stream.Collectors.toList());
+        
+        return ResponseEntity.ok(chatRoomsWithUnread);
+    }
+
+    private boolean isReserved(Product product) {
+        return false;
+    }
+
+    private boolean isCompleted(Product product) {
+        return false;
     }
 
     @GetMapping("/rooms/{chatRoomId}/messages")
     public ResponseEntity<Page<ChatMessageDTO>> getMessages(
             @PathVariable Long chatRoomId,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "50") int size,
+            Authentication authentication) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        User user = userRepository.findByName(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        
         List<ChatMessageDTO> messages = chatWebSocketHandler.getMessagesFromRedis(chatRoomId, page, size);
         long total = chatWebSocketHandler.getMessageCountFromRedis(chatRoomId);
+        
+        if (!messages.isEmpty()) {
+            Long lastMessageId = messages.get(0).getId();
+            if (lastMessageId != null) {
+                chatWebSocketHandler.markAsRead(chatRoomId, user.getId(), lastMessageId);
+            }
+        }
         
         Page<ChatMessageDTO> messagePage = new PageImpl<>(
                 messages,
@@ -135,5 +202,24 @@ public class ChatController {
         );
         
         return ResponseEntity.ok(messagePage);
+    }
+
+    @PostMapping("/rooms/{chatRoomId}/read")
+    public ResponseEntity<Void> markChatRoomAsRead(
+            @PathVariable Long chatRoomId,
+            Authentication authentication) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        User user = userRepository.findByName(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        
+        List<ChatMessageDTO> messages = chatWebSocketHandler.getMessagesFromRedis(chatRoomId, 1, 1);
+        if (!messages.isEmpty()) {
+            Long lastMessageId = messages.get(0).getId();
+            if (lastMessageId != null) {
+                chatWebSocketHandler.markAsRead(chatRoomId, user.getId(), lastMessageId);
+            }
+        }
+        
+        return ResponseEntity.ok().build();
     }
 }

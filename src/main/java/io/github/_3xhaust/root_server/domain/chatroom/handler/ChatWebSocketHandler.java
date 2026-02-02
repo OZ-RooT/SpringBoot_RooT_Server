@@ -38,8 +38,10 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
     private static final String PENDING_MESSAGES_PREFIX = "chat:pending:";
     private static final String ACTIVE_SESSIONS_PREFIX = "chat:active:";
     private static final String CHAT_MESSAGES_PREFIX = "chat:messages:";
+    private static final String LAST_READ_MESSAGE_PREFIX = "chat:lastRead:";
     private static final Duration MESSAGE_TTL = Duration.ofHours(24);
     private static final Duration SESSION_TTL = Duration.ofHours(1);
+    private static final Duration LAST_READ_TTL = Duration.ofDays(30);
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -70,7 +72,6 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
                 String sessionId = accessor.getSessionId();
                 if (sessionId != null) {
                     try {
-                        // Redis를 사용하므로 pending messages는 자동으로 저장됨
                         deletePendingMessages(sessionId);
                         deleteActiveSession(sessionId);
                     } catch (Exception e) {
@@ -177,7 +178,6 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
                 return b.getCreatedAt().compareTo(a.getCreatedAt());
             });
 
-            // 페이지네이션 적용
             int start = (page - 1) * size;
             int end = Math.min(start + size, messages.size());
             if (start >= messages.size()) {
@@ -197,6 +197,60 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
             return count != null ? count : 0;
         } catch (Exception e) {
             log.error("Failed to get message count from Redis", e);
+            return 0;
+        }
+    }
+
+    public void markAsRead(Long chatRoomId, Long userId, Long messageId) {
+        try {
+            String key = LAST_READ_MESSAGE_PREFIX + chatRoomId + ":" + userId;
+            redisTemplate.opsForValue().set(key, String.valueOf(messageId), LAST_READ_TTL);
+            log.debug("Marked message as read: chatRoomId={}, userId={}, messageId={}", chatRoomId, userId, messageId);
+        } catch (Exception e) {
+            log.error("Failed to mark message as read", e);
+        }
+    }
+
+    public Long getLastReadMessageId(Long chatRoomId, Long userId) {
+        try {
+            String key = LAST_READ_MESSAGE_PREFIX + chatRoomId + ":" + userId;
+            String messageIdStr = redisTemplate.opsForValue().get(key);
+            return messageIdStr != null ? Long.parseLong(messageIdStr) : null;
+        } catch (Exception e) {
+            log.error("Failed to get last read message ID", e);
+            return null;
+        }
+    }
+
+    public long getUnreadCount(Long chatRoomId, Long userId) {
+        try {
+            String key = CHAT_MESSAGES_PREFIX + chatRoomId;
+            List<String> messageJsonList = redisTemplate.opsForList().range(key, 0, -1);
+            if (messageJsonList == null || messageJsonList.isEmpty()) {
+                return 0;
+            }
+
+            Long lastReadMessageId = getLastReadMessageId(chatRoomId, userId);
+            if (lastReadMessageId == null) {
+                return messageJsonList.size();
+            }
+
+            long unreadCount = 0;
+            for (String messageJson : messageJsonList) {
+                try {
+                    ChatMessageDTO message = objectMapper.readValue(messageJson, ChatMessageDTO.class);
+                    if (message.getSenderId() != userId && 
+                        (message.getId() == null || message.getId() > lastReadMessageId)) {
+                        unreadCount++;
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to parse message JSON", e);
+                }
+            }
+
+            return unreadCount;
+        } catch (Exception e) {
+            log.error("Failed to get unread count", e);
             return 0;
         }
     }

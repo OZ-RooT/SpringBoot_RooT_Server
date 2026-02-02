@@ -430,13 +430,12 @@
 
     <script>
         const API_BASE_URL = 'https://api-root.3xhaust.dev';
-        // const API_BASE_URL = 'http://localhost:8080';
         const WS_URL = 'https://api-root.3xhaust.dev/ws/chat';
-        // const WS_URL = 'http://localhost:8080/ws/chat';
 
         let stompClient = null;
         let currentChatRoomId = null;
         let jwtToken = '';
+        let currentUserId = null;
 
         function log(message, type = 'info') {
             const logDiv = document.getElementById('log');
@@ -539,7 +538,10 @@
                     setButtonsState(true);
                     log(`WebSocket 연결 성공: ${frame}`, 'success');
                     
-                    if (currentChatRoomId) {
+                    const chatRoomId = document.getElementById('currentChatRoomId').value;
+                    if (chatRoomId) {
+                        subscribeToChatRoom(parseInt(chatRoomId));
+                    } else if (currentChatRoomId) {
                         subscribeToChatRoom(currentChatRoomId);
                     }
                 },
@@ -579,8 +581,12 @@
 
             const subscription = stompClient.subscribe(`/topic/chat/${chatRoomId}`, function(message) {
                 const data = JSON.parse(message.body);
-                displayMessage(data, false);
-                log(`메시지 수신: ${data.message}`, 'success');
+                const isSent = currentUserId !== null && data.senderId === currentUserId;
+                displayMessage(data, isSent);
+                if (!isSent) {
+                    markAsRead(chatRoomId);
+                }
+                log(`메시지 수신: ${data.message} (senderId: ${data.senderId}, isSent: ${isSent})`, 'success');
             });
 
             log(`채팅방 ${chatRoomId} 구독 시작`, 'success');
@@ -613,16 +619,8 @@
 
             stompClient.send('/app/send', {}, JSON.stringify(payload));
             
-            const tempMessage = {
-                chatRoomId: parseInt(chatRoomId),
-                senderId: 0,
-                senderName: '나',
-                message: message,
-                createdAt: new Date().toISOString()
-            };
-            displayMessage(tempMessage, true);
             messageInput.value = '';
-            log(`메시지 전송: ${message}`, 'success');
+            log(`메시지 전송 요청: ${message}`, 'success');
         }
 
         function displayMessage(message, isSent) {
@@ -679,7 +677,6 @@
                         try {
                             errorJson = JSON.parse(errorText);
                         } catch (e) {
-                            // JSON 파싱 실패 시 텍스트 그대로 사용
                         }
                     } catch (e) {
                         errorText = '응답 본문을 읽을 수 없습니다.';
@@ -697,7 +694,7 @@
                         log('해결 방법: 연결 버튼을 클릭하여 새로운 JWT 토큰을 입력하세요.', 'error');
                         alert(`403 Forbidden 에러가 발생했습니다.\n\n가능한 원인:\n- JWT 토큰이 만료되었거나 유효하지 않음\n- 토큰 형식이 올바르지 않음\n\n해결 방법:\n연결 버튼을 클릭하여 새로운 JWT 토큰을 입력하세요.`);
                     } else {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
                     }
                     return;
                 }
@@ -712,8 +709,9 @@
                     chatRooms.forEach(room => {
                         const li = document.createElement('li');
                         li.className = 'chat-room-item';
+                        const unreadBadge = room.unreadCount > 0 ? `<span style="background: #dc3545; color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; margin-left: 8px;">${room.unreadCount}</span>` : '';
                         li.innerHTML = `
-                            <div class="chat-room-title">${room.productTitle}</div>
+                            <div class="chat-room-title">${room.productTitle}${unreadBadge}</div>
                             <div class="chat-room-info">
                                 ${room.sellerName} / ${room.buyerName}
                             </div>
@@ -775,7 +773,6 @@
                         try {
                             errorJson = JSON.parse(errorText);
                         } catch (e) {
-                            // JSON 파싱 실패 시 텍스트 그대로 사용
                         }
                     } catch (e) {
                         errorText = '응답 본문을 읽을 수 없습니다.';
@@ -793,7 +790,7 @@
                         log('해결 방법: 연결 버튼을 클릭하여 새로운 JWT 토큰을 입력하세요.', 'error');
                         alert(`403 Forbidden 에러가 발생했습니다.\n\n가능한 원인:\n- JWT 토큰이 만료되었거나 유효하지 않음\n- 토큰 형식이 올바르지 않음\n\n해결 방법:\n연결 버튼을 클릭하여 새로운 JWT 토큰을 입력하세요.`);
                     } else {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
                     }
                     return;
                 }
@@ -812,11 +809,35 @@
         }
 
         function selectChatRoom(chatRoomId) {
+            currentChatRoomId = chatRoomId;
             document.getElementById('currentChatRoomId').value = chatRoomId;
             if (stompClient && stompClient.connected) {
                 subscribeToChatRoom(chatRoomId);
+            } else {
+                log('WebSocket이 연결되지 않았습니다. 연결 후 채팅방을 다시 선택하세요.', 'error');
             }
             loadMessages();
+            markAsRead(chatRoomId);
+        }
+
+        async function markAsRead(chatRoomId) {
+            const token = jwtToken || localStorage.getItem('jwtToken');
+            if (!token) {
+                return;
+            }
+
+            try {
+                await fetch(`${API_BASE_URL}/api/v1/chat/rooms/${chatRoomId}/read`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                loadChatRooms();
+            } catch (error) {
+                log(`읽음 처리 실패: ${error.message}`, 'error');
+            }
         }
 
         async function loadMessages() {
@@ -857,7 +878,7 @@
                     messagesDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">메시지가 없습니다.</div>';
                 } else {
                     messages.reverse().forEach(message => {
-                        const isSent = message.senderId === 0;
+                        const isSent = currentUserId !== null && message.senderId === currentUserId;
                         displayMessage(message, isSent);
                     });
                 }
@@ -922,7 +943,6 @@
                         try {
                             errorJson = JSON.parse(errorText);
                         } catch (e) {
-                            // JSON 파싱 실패 시 텍스트 그대로 사용
                         }
                     } catch (e) {
                         errorText = '응답 본문을 읽을 수 없습니다.';
@@ -943,9 +963,11 @@
                     localStorage.setItem('refreshToken', tokenData.refreshToken || '');
                     updateTokenPreview();
                     log(`로그인 성공! JWT 토큰이 저장되었습니다. (길이: ${jwtToken.length})`, 'success');
+                    
+                    await loadCurrentUser();
+                    
                     alert('로그인 성공! JWT 토큰이 자동으로 설정되었습니다.');
                     
-                    // 폼 초기화
                     document.getElementById('loginName').value = '';
                     document.getElementById('loginPassword').value = '';
                 } else {
@@ -1008,7 +1030,6 @@
                         try {
                             errorJson = JSON.parse(errorText);
                         } catch (e) {
-                            // JSON 파싱 실패 시 텍스트 그대로 사용
                         }
                     } catch (e) {
                         errorText = '응답 본문을 읽을 수 없습니다.';
@@ -1029,9 +1050,11 @@
                     localStorage.setItem('refreshToken', tokenData.refreshToken || '');
                     updateTokenPreview();
                     log(`회원가입 성공! JWT 토큰이 저장되었습니다. (길이: ${jwtToken.length})`, 'success');
+                    
+                    await loadCurrentUser();
+                    
                     alert('회원가입 성공! JWT 토큰이 자동으로 설정되었습니다.');
                     
-                    // 폼 초기화
                     document.getElementById('signupEmail').value = '';
                     document.getElementById('signupName').value = '';
                     document.getElementById('signupPassword').value = '';
@@ -1170,10 +1193,8 @@
             }
 
             try {
-                // 먼저 이미지 업로드
                 const imageIds = await uploadImages();
                 
-                // 상품 등록 요청 데이터 구성
                 const productData = {
                     title: title,
                     price: price,
@@ -1225,7 +1246,6 @@
                         try {
                             errorJson = JSON.parse(errorText);
                         } catch (e) {
-                            // JSON 파싱 실패 시 텍스트 그대로 사용
                         }
                     } catch (e) {
                         errorText = '응답 본문을 읽을 수 없습니다.';
@@ -1243,7 +1263,6 @@
                 log(`상품 등록 성공! 상품 ID: ${product.id}`, 'success');
                 alert(`상품 등록 성공!\n상품 ID: ${product.id}\n제목: ${product.title}`);
                 
-                // 폼 초기화
                 document.getElementById('productTitle').value = '';
                 document.getElementById('productPrice').value = '';
                 document.getElementById('productDescription').value = '';
@@ -1262,17 +1281,52 @@
             }
         }
 
-        window.onload = function() {
+        async function loadCurrentUser() {
+            const token = jwtToken || localStorage.getItem('jwtToken');
+            if (!token) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const apiResponse = await response.json();
+                    const userData = apiResponse.data;
+                    if (userData && userData.id) {
+                        currentUserId = userData.id;
+                        localStorage.setItem('currentUserId', currentUserId);
+                        log(`현재 사용자 ID 로드: ${currentUserId}`, 'success');
+                    }
+                }
+            } catch (error) {
+                log(`사용자 정보 로드 실패: ${error.message}`, 'error');
+            }
+        }
+
+        window.onload = async function() {
             const savedToken = localStorage.getItem('jwtToken');
             if (savedToken) {
                 jwtToken = savedToken;
                 updateTokenPreview();
                 log(`저장된 JWT 토큰을 불러왔습니다. (길이: ${jwtToken.length})`, 'info');
+                
+                const savedUserId = localStorage.getItem('currentUserId');
+                if (savedUserId) {
+                    currentUserId = parseInt(savedUserId);
+                    log(`저장된 사용자 ID 불러옴: ${currentUserId}`, 'info');
+                } else {
+                    await loadCurrentUser();
+                }
             } else {
                 updateTokenPreview();
             }
             
-            // 기본적으로 로그인 폼 표시
             showLoginForm();
         };
     </script>

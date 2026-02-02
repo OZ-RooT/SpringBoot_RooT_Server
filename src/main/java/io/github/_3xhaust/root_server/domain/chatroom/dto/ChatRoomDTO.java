@@ -20,4 +20,5 @@ public class ChatRoomDTO {
     private Long buyerId;
     private String buyerName;
     private Instant createdAt;
+    private Long unreadCount;
 }
