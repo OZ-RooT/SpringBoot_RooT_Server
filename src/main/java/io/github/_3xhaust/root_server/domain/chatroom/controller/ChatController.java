@@ -11,6 +11,8 @@ import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -43,26 +45,41 @@ public class ChatController {
             throw new IllegalStateException("User not authenticated");
         }
 
-        UserDetails userDetails = (UserDetails) principal;
+        UserDetails userDetails;
+        if (principal instanceof org.springframework.security.authentication.UsernamePasswordAuthenticationToken) {
+            userDetails = (UserDetails) ((org.springframework.security.authentication.UsernamePasswordAuthenticationToken) principal).getPrincipal();
+        } else if (principal instanceof UserDetails) {
+            userDetails = (UserDetails) principal;
+        } else {
+            throw new IllegalStateException("Unexpected principal type: " + principal.getClass());
+        }
+
         User sender = userRepository.findByName(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         Long chatRoomId = Long.valueOf(payload.get("chatRoomId").toString());
         String message = payload.get("message").toString();
 
+        log.info("Sending message: chatRoomId={}, sender={}, message={}", chatRoomId, sender.getName(), message);
+
+        Long messageId = System.currentTimeMillis();
+        java.time.Instant createdAt = java.time.Instant.now();
+
         ChatMessageDTO chatMessage = ChatMessageDTO.builder()
+                .id(messageId)
                 .chatRoomId(chatRoomId)
                 .senderId(sender.getId())
                 .senderName(sender.getName())
                 .message(message)
+                .createdAt(createdAt)
                 .build();
 
-        String sessionId = headerAccessor.getSessionId();
-        if (sessionId != null) {
-            chatWebSocketHandler.addPendingMessage(sessionId, chatMessage);
-        }
+        chatWebSocketHandler.saveMessageToRedis(chatMessage);
 
         messagingTemplate.convertAndSend("/topic/chat/" + chatRoomId, chatMessage);
+        
+        log.info("Message sent and saved to Redis: chatRoomId={}, messageId={}, senderId={}, message={}", 
+                chatRoomId, messageId, sender.getId(), message);
     }
 
     @PostMapping("/rooms")
@@ -108,7 +125,15 @@ public class ChatController {
             @PathVariable Long chatRoomId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int size) {
-        Page<ChatMessageDTO> messages = chatService.getMessages(chatRoomId, page, size);
-        return ResponseEntity.ok(messages);
+        List<ChatMessageDTO> messages = chatWebSocketHandler.getMessagesFromRedis(chatRoomId, page, size);
+        long total = chatWebSocketHandler.getMessageCountFromRedis(chatRoomId);
+        
+        Page<ChatMessageDTO> messagePage = new PageImpl<>(
+                messages,
+                PageRequest.of(page - 1, size),
+                total
+        );
+        
+        return ResponseEntity.ok(messagePage);
     }
 }

@@ -37,6 +37,7 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
 
     private static final String PENDING_MESSAGES_PREFIX = "chat:pending:";
     private static final String ACTIVE_SESSIONS_PREFIX = "chat:active:";
+    private static final String CHAT_MESSAGES_PREFIX = "chat:messages:";
     private static final Duration MESSAGE_TTL = Duration.ofHours(24);
     private static final Duration SESSION_TTL = Duration.ofHours(1);
 
@@ -69,14 +70,11 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
                 String sessionId = accessor.getSessionId();
                 if (sessionId != null) {
                     try {
-                        List<ChatMessageDTO> messages = getPendingMessages(sessionId);
-                        if (messages != null && !messages.isEmpty()) {
-                            chatService.saveMessages(messages);
-                            deletePendingMessages(sessionId);
-                        }
+                        // Redis를 사용하므로 pending messages는 자동으로 저장됨
+                        deletePendingMessages(sessionId);
                         deleteActiveSession(sessionId);
                     } catch (Exception e) {
-                        log.error("Failed to save messages on disconnect", e);
+                        log.error("Failed to cleanup on disconnect", e);
                     }
                 }
             }
@@ -142,6 +140,64 @@ public class ChatWebSocketHandler implements ChannelInterceptor {
             redisTemplate.delete(key);
         } catch (Exception e) {
             log.error("Failed to delete active session from Redis", e);
+        }
+    }
+
+    public void saveMessageToRedis(ChatMessageDTO message) {
+        try {
+            String key = CHAT_MESSAGES_PREFIX + message.getChatRoomId();
+            String messageJson = objectMapper.writeValueAsString(message);
+            redisTemplate.opsForList().rightPush(key, messageJson);
+            redisTemplate.expire(key, MESSAGE_TTL);
+            log.debug("Message saved to Redis: chatRoomId={}, messageId={}", message.getChatRoomId(), message.getId());
+        } catch (Exception e) {
+            log.error("Failed to save message to Redis", e);
+        }
+    }
+
+    public List<ChatMessageDTO> getMessagesFromRedis(Long chatRoomId, int page, int size) {
+        try {
+            String key = CHAT_MESSAGES_PREFIX + chatRoomId;
+            List<String> messageJsonList = redisTemplate.opsForList().range(key, 0, -1);
+            if (messageJsonList == null || messageJsonList.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<ChatMessageDTO> messages = new ArrayList<>();
+            for (String messageJson : messageJsonList) {
+                ChatMessageDTO message = objectMapper.readValue(messageJson, ChatMessageDTO.class);
+                messages.add(message);
+            }
+
+            // 최신 메시지가 뒤에 있으므로 역순으로 정렬
+            messages.sort((a, b) -> {
+                if (a.getCreatedAt() == null || b.getCreatedAt() == null) {
+                    return 0;
+                }
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            });
+
+            // 페이지네이션 적용
+            int start = (page - 1) * size;
+            int end = Math.min(start + size, messages.size());
+            if (start >= messages.size()) {
+                return new ArrayList<>();
+            }
+            return messages.subList(start, end);
+        } catch (Exception e) {
+            log.error("Failed to get messages from Redis", e);
+            return new ArrayList<>();
+        }
+    }
+
+    public long getMessageCountFromRedis(Long chatRoomId) {
+        try {
+            String key = CHAT_MESSAGES_PREFIX + chatRoomId;
+            Long count = redisTemplate.opsForList().size(key);
+            return count != null ? count : 0;
+        } catch (Exception e) {
+            log.error("Failed to get message count from Redis", e);
+            return 0;
         }
     }
 }

@@ -53,7 +53,7 @@ public class ChatService {
     }
 
     @Transactional
-    public void saveMessage(Long chatRoomId, Long senderId, String message) {
+    public ChatMessage saveMessage(Long chatRoomId, Long senderId, String message) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("ChatRoom not found: " + chatRoomId));
         User sender = userRepository.findById(senderId)
@@ -65,7 +65,7 @@ public class ChatService {
                 .message(message)
                 .build();
 
-        chatMessageRepository.save(chatMessage);
+        return chatMessageRepository.save(chatMessage);
     }
 
     @Transactional
