@@ -363,23 +363,30 @@
         }
 
         function getJwtToken() {
-            const token = prompt('JWT 토큰을 입력하세요:');
-            if (token) {
-                jwtToken = token;
-                localStorage.setItem('jwtToken', token);
+            const token = prompt('JWT 토큰을 입력하세요:\n\n(로그인 API를 통해 받은 accessToken을 입력하세요)');
+            if (token && token.trim()) {
+                jwtToken = token.trim();
+                localStorage.setItem('jwtToken', jwtToken);
                 log('JWT 토큰이 저장되었습니다.', 'success');
+                return jwtToken;
+            } else if (token === null) {
+                return null;
+            } else {
+                alert('토큰을 입력해주세요.');
+                return null;
             }
-            return token;
         }
 
         function connect() {
             if (!jwtToken) {
                 const savedToken = localStorage.getItem('jwtToken');
-                if (savedToken) {
-                    jwtToken = savedToken;
+                if (savedToken && savedToken.trim()) {
+                    jwtToken = savedToken.trim();
+                    log('저장된 JWT 토큰을 사용합니다.', 'info');
                 } else {
-                    if (!getJwtToken()) {
-                        log('JWT 토큰이 필요합니다.', 'error');
+                    const token = getJwtToken();
+                    if (!token) {
+                        log('JWT 토큰이 필요합니다. 연결을 취소합니다.', 'error');
                         return;
                     }
                 }
@@ -514,19 +521,22 @@
         async function loadChatRooms() {
             const token = jwtToken || localStorage.getItem('jwtToken');
             if (!token) {
-                log('JWT 토큰이 필요합니다. 연결 버튼을 먼저 클릭하세요.', 'error');
+                log('JWT 토큰이 필요합니다. 연결 버튼을 먼저 클릭하여 토큰을 입력하세요.', 'error');
+                alert('JWT 토큰이 필요합니다.\n연결 버튼을 클릭하여 토큰을 입력해주세요.');
                 return;
             }
 
             try {
                 const response = await fetch(`${API_BASE_URL}/api/v1/chat/rooms`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
                 }
 
                 const chatRooms = await response.json();
@@ -566,12 +576,14 @@
             const productId = document.getElementById('productId').value;
             if (!productId) {
                 log('상품 ID를 입력하세요.', 'error');
+                alert('상품 ID를 입력해주세요.');
                 return;
             }
 
             const token = jwtToken || localStorage.getItem('jwtToken');
             if (!token) {
-                log('JWT 토큰이 필요합니다. 연결 버튼을 먼저 클릭하세요.', 'error');
+                log('JWT 토큰이 필요합니다. 연결 버튼을 먼저 클릭하여 토큰을 입력하세요.', 'error');
+                alert('JWT 토큰이 필요합니다.\n연결 버튼을 클릭하여 토큰을 입력해주세요.');
                 return;
             }
 
@@ -579,12 +591,14 @@
                 const response = await fetch(`${API_BASE_URL}/api/v1/chat/rooms?productId=${productId}`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
                 }
 
                 const chatRoom = await response.json();
@@ -609,24 +623,28 @@
             const chatRoomId = document.getElementById('currentChatRoomId').value;
             if (!chatRoomId) {
                 log('채팅방 ID를 입력하세요.', 'error');
+                alert('채팅방 ID를 입력해주세요.');
                 return;
             }
 
             const token = jwtToken || localStorage.getItem('jwtToken');
             if (!token) {
-                log('JWT 토큰이 필요합니다.', 'error');
+                log('JWT 토큰이 필요합니다. 연결 버튼을 먼저 클릭하여 토큰을 입력하세요.', 'error');
+                alert('JWT 토큰이 필요합니다.\n연결 버튼을 클릭하여 토큰을 입력해주세요.');
                 return;
             }
 
             try {
                 const response = await fetch(`${API_BASE_URL}/api/v1/chat/rooms/${chatRoomId}/messages?page=1&size=50`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
                 }
 
                 const data = await response.json();
