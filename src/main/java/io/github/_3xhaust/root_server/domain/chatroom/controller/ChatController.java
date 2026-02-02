@@ -87,12 +87,12 @@ public class ChatController {
             @RequestParam Long productId,
             Authentication authentication) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        User buyer = userRepository.findByName(userDetails.getUsername())
+        User seller = userRepository.findByName(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
-        User seller = product.getSeller();
+        User buyer = product.getSeller();
 
         var chatRoom = chatService.getOrCreateChatRoom(productId, seller.getId(), buyer.getId());
 
