@@ -15,12 +15,13 @@ import java.time.Instant;
 public class ProductListResponse {
     private Long id;
     private String title;
-    private Integer price;
+    private Double price;
     private String description;
     private Short type;
     private String thumbnailUrl;
     private Instant createdAt;
     private SellerInfo seller;
+    private Boolean isFavorite;
 
     @Getter
     @Builder
@@ -32,6 +33,10 @@ public class ProductListResponse {
     }
 
     public static ProductListResponse of(Product product) {
+        return of(product, null);
+    }
+
+    public static ProductListResponse of(Product product, Boolean isFavorite) {
         String thumbnailUrl = null;
         if (!product.getProductImages().isEmpty()) {
             thumbnailUrl = product.getProductImages().get(0).getImage().getUrl();
@@ -49,6 +54,7 @@ public class ProductListResponse {
                         .id(product.getSeller().getId())
                         .name(product.getSeller().getName())
                         .build())
+                .isFavorite(isFavorite)
                 .build();
     }
 }

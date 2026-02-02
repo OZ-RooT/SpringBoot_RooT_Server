@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github._3xhaust.root_server.domain.translationcache.entity.TranslationCache;
 import io.github._3xhaust.root_server.domain.translationcache.repository.TranslationCacheRepository;
+import io.github._3xhaust.root_server.infrastructure.redis.service.RedisCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -27,9 +29,13 @@ public class TranslationService {
     private final TranslationCacheRepository translationCacheRepository;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final RedisCacheService redisCacheService;
 
     @Value("${google.translate.api-key:}")
     private String googleApiKey;
+
+    private static final String CACHE_PREFIX_TRANSLATION = "translation:";
+    private static final Duration CACHE_TTL = Duration.ofDays(30);
 
     /**
      * 텍스트를 대상 언어로 번역합니다.
@@ -42,11 +48,20 @@ public class TranslationService {
         }
 
         String hash = generateHash(text, targetLanguage);
+        String cacheKey = CACHE_PREFIX_TRANSLATION + hash;
 
-        Optional<TranslationCache> cached = translationCacheRepository.findByHash(hash);
-        if (cached.isPresent()) {
-            log.debug("Translation cache hit for hash: {}", hash);
-            return cached.get().getTranslatedText();
+        Optional<String> redisCache = redisCacheService.get(cacheKey, String.class);
+        if (redisCache.isPresent()) {
+            log.debug("Translation Redis cache hit for hash: {}", hash);
+            return redisCache.get();
+        }
+
+        Optional<TranslationCache> dbCache = translationCacheRepository.findByHash(hash);
+        if (dbCache.isPresent()) {
+            log.debug("Translation DB cache hit for hash: {}", hash);
+            String translatedText = dbCache.get().getTranslatedText();
+            redisCacheService.set(cacheKey, translatedText, CACHE_TTL);
+            return translatedText;
         }
 
         String translatedText = callGoogleTranslateApi(text, targetLanguage);
@@ -58,6 +73,7 @@ public class TranslationService {
                 .translatedText(translatedText)
                 .build();
         translationCacheRepository.save(cache);
+        redisCacheService.set(cacheKey, translatedText, CACHE_TTL);
 
         log.debug("Translation cached for hash: {}", hash);
         return translatedText;

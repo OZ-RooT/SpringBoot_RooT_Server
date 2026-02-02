@@ -72,15 +72,17 @@ public class GarageSaleService {
     }
 
     @Transactional
-    public GarageSaleResponse createGarageSale(String email, CreateGarageSaleRequest request) {
-        User owner = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public GarageSaleResponse createGarageSale(String name, CreateGarageSaleRequest request) {
+        User owner = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         GarageSale garageSale = GarageSale.builder()
                 .owner(owner)
                 .name(request.getName())
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
                 .build();
@@ -90,9 +92,9 @@ public class GarageSaleService {
     }
 
     @Transactional
-    public GarageSaleResponse updateGarageSale(String email, Long id, UpdateGarageSaleRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public GarageSaleResponse updateGarageSale(String name, Long id, UpdateGarageSaleRequest request) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         GarageSale garageSale = garageSaleRepository.findById(id)
                 .orElseThrow(() -> new GarageSaleException(GarageSaleErrorCode.GARAGE_SALE_NOT_FOUND, "id=" + id));
@@ -105,6 +107,8 @@ public class GarageSaleService {
                 request.getName() != null ? request.getName() : garageSale.getName(),
                 request.getLatitude() != null ? request.getLatitude() : garageSale.getLatitude(),
                 request.getLongitude() != null ? request.getLongitude() : garageSale.getLongitude(),
+                request.getStartDate() != null ? request.getStartDate() : garageSale.getStartDate(),
+                request.getEndDate() != null ? request.getEndDate() : garageSale.getEndDate(),
                 request.getStartTime() != null ? request.getStartTime() : garageSale.getStartTime(),
                 request.getEndTime() != null ? request.getEndTime() : garageSale.getEndTime()
         );
@@ -113,9 +117,9 @@ public class GarageSaleService {
     }
 
     @Transactional
-    public void toggleFavoriteGarageSale(String email, Long garageSaleId) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public void toggleFavoriteGarageSale(String name, Long garageSaleId) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         GarageSale garageSale = garageSaleRepository.findById(garageSaleId)
                 .orElseThrow(() -> new GarageSaleException(GarageSaleErrorCode.GARAGE_SALE_NOT_FOUND, "id=" + garageSaleId));
@@ -147,9 +151,9 @@ public class GarageSaleService {
     }
 
     @Transactional
-    public void toggleFavoriteGarageSaleProduct(String email, Long garageSaleId, Long productId) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public void toggleFavoriteGarageSaleProduct(String name, Long garageSaleId, Long productId) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         GarageSale garageSale = garageSaleRepository.findById(garageSaleId)
                 .orElseThrow(() -> new GarageSaleException(GarageSaleErrorCode.GARAGE_SALE_NOT_FOUND, "id=" + garageSaleId));
@@ -173,9 +177,9 @@ public class GarageSaleService {
         }
     }
 
-    public List<GarageSaleListResponse> getFavoriteGarageSales(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public List<GarageSaleListResponse> getFavoriteGarageSales(String name) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         List<GarageSale> garageSales = favoriteGarageSaleRepository.findGarageSalesByUserId(user.getId());
         return garageSales.stream()
@@ -252,13 +256,30 @@ public class GarageSaleService {
     }
 
     private GarageSaleListResponse convertToGarageSaleListResponse(GarageSaleDocument document) {
+        // TODO: Elasticsearch Document도 LocalDate, LocalTime으로 변경 필요
+        // 임시로 Instant를 LocalDate, LocalTime으로 변환
+        java.time.LocalDate startDate = document.getStartTime() != null 
+                ? document.getStartTime().atZone(java.time.ZoneId.systemDefault()).toLocalDate() 
+                : null;
+        java.time.LocalDate endDate = document.getEndTime() != null 
+                ? document.getEndTime().atZone(java.time.ZoneId.systemDefault()).toLocalDate() 
+                : null;
+        java.time.LocalTime startTime = document.getStartTime() != null 
+                ? document.getStartTime().atZone(java.time.ZoneId.systemDefault()).toLocalTime() 
+                : null;
+        java.time.LocalTime endTime = document.getEndTime() != null 
+                ? document.getEndTime().atZone(java.time.ZoneId.systemDefault()).toLocalTime() 
+                : null;
+        
         return GarageSaleListResponse.builder()
                 .id(document.getGarageSaleId())
                 .name(document.getName())
                 .latitude(document.getLatitude())
                 .longitude(document.getLongitude())
-                .startTime(document.getStartTime())
-                .endTime(document.getEndTime())
+                .startDate(startDate)
+                .endDate(endDate)
+                .startTime(startTime)
+                .endTime(endTime)
                 .owner(GarageSaleListResponse.OwnerInfo.builder()
                         .id(document.getOwnerId())
                         .name(document.getOwnerName())

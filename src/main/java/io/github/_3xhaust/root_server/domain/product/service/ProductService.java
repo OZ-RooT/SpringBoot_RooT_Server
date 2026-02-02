@@ -24,6 +24,7 @@ import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
 import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.ProductDocument;
 import io.github._3xhaust.root_server.infrastructure.elasticsearch.repository.ProductSearchRepository;
+import io.github._3xhaust.root_server.infrastructure.redis.service.RedisCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,6 +33,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 @Service
@@ -46,10 +48,14 @@ public class ProductService {
     private final GarageSaleRepository garageSaleRepository;
     private final ImageRepository imageRepository;
     private final ProductSearchRepository productSearchRepository;
+    private final RedisCacheService redisCacheService;
 
     private static final short TYPE_USED = 0;
+    private static final String CACHE_PREFIX_PRODUCT = "product:";
+    private static final String CACHE_PREFIX_PRODUCT_LIST = "product:list:";
+    private static final Duration CACHE_TTL = Duration.ofHours(1);
 
-    public Page<ProductListResponse> getProducts(Short type, int page, int limit) {
+    public Page<ProductListResponse> getProducts(Short type, int page, int limit, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<Product> products;
@@ -59,19 +65,30 @@ public class ProductService {
             products = productRepository.findAll(pageable);
         }
 
-        return products.map(ProductListResponse::of);
+        return products.map(product -> {
+            Boolean isFavorite = userId != null && favoriteUsedItemRepository.existsByUserIdAndProductId(userId, product.getId());
+            return ProductListResponse.of(product, isFavorite);
+        });
     }
 
-    public ProductResponse getProductById(Long productId) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
-        return ProductResponse.of(product);
+    public ProductResponse getProductById(Long productId, Long userId) {
+        String cacheKey = CACHE_PREFIX_PRODUCT + productId + ":" + (userId != null ? userId : "null");
+        
+        return redisCacheService.get(cacheKey, ProductResponse.class)
+                .orElseGet(() -> {
+                    Product product = productRepository.findById(productId)
+                            .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
+                    Boolean isFavorite = userId != null && favoriteUsedItemRepository.existsByUserIdAndProductId(userId, productId);
+                    ProductResponse response = ProductResponse.of(product, isFavorite);
+                    redisCacheService.set(cacheKey, response, CACHE_TTL);
+                    return response;
+                });
     }
 
     @Transactional
-    public ProductResponse createProduct(String email, CreateProductRequest request) {
-        User seller = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public ProductResponse createProduct(String name, CreateProductRequest request) {
+        User seller = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         GarageSale garageSale = null;
         if (request.getGarageSaleId() != null) {
@@ -88,9 +105,13 @@ public class ProductService {
                 .body(request.getBody())
                 .type(request.getType())
                 .garageSale(garageSale)
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
                 .build();
 
         Product savedProduct = productRepository.save(product);
+        
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT_LIST + "*");
 
         if (request.getImageIds() != null && !request.getImageIds().isEmpty()) {
             for (Long imageId : request.getImageIds()) {
@@ -105,13 +126,14 @@ public class ProductService {
             }
         }
 
-        return ProductResponse.of(savedProduct);
+        Boolean isFavorite = favoriteUsedItemRepository.existsByUserIdAndProductId(seller.getId(), savedProduct.getId());
+        return ProductResponse.of(savedProduct, isFavorite);
     }
 
     @Transactional
-    public ProductResponse updateProduct(String email, Long productId, UpdateProductRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public ProductResponse updateProduct(String name, Long productId, UpdateProductRequest request) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
@@ -124,8 +146,13 @@ public class ProductService {
                 request.getTitle() != null ? request.getTitle() : product.getTitle(),
                 request.getPrice() != null ? request.getPrice() : product.getPrice(),
                 request.getDescription() != null ? request.getDescription() : product.getDescription(),
-                request.getBody() != null ? request.getBody() : product.getBody()
+                request.getBody() != null ? request.getBody() : product.getBody(),
+                request.getLatitude() != null ? request.getLatitude() : product.getLatitude(),
+                request.getLongitude() != null ? request.getLongitude() : product.getLongitude()
         );
+        
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT + productId + ":*");
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT_LIST + "*");
 
         if (request.getImageIds() != null) {
             productImageRepository.deleteByProductId(productId);
@@ -143,13 +170,14 @@ public class ProductService {
             }
         }
 
-        return ProductResponse.of(product);
+        Boolean isFavorite = favoriteUsedItemRepository.existsByUserIdAndProductId(user.getId(), product.getId());
+        return ProductResponse.of(product, isFavorite);
     }
 
     @Transactional
-    public void deleteProduct(String email, Long productId) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public void deleteProduct(String name, Long productId) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
@@ -159,12 +187,14 @@ public class ProductService {
         }
 
         productRepository.delete(product);
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT + productId + ":*");
+        redisCacheService.deletePattern(CACHE_PREFIX_PRODUCT_LIST + "*");
     }
 
     @Transactional
-    public void toggleFavorite(String email, Long productId) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public void toggleFavorite(String name, Long productId) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
@@ -178,11 +208,13 @@ public class ProductService {
                     .build();
             favoriteUsedItemRepository.save(favorite);
         }
+        
+        redisCacheService.delete(CACHE_PREFIX_PRODUCT + productId + ":" + user.getId());
     }
 
-    public List<ProductListResponse> getFavoriteProducts(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public List<ProductListResponse> getFavoriteProducts(String name) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         List<Product> products = favoriteUsedItemRepository.findProductsByUserId(user.getId());
         return products.stream()
@@ -190,16 +222,19 @@ public class ProductService {
                 .toList();
     }
 
-    public Page<ProductListResponse> searchProducts(String title, Double minPrice, Double maxPrice, int page, int limit, String sortBy, String direction) {
+    public Page<ProductListResponse> searchProducts(String title, Double minPrice, Double maxPrice, int page, int limit, String sortBy, String direction, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.fromString(direction), sortBy));
         Page<Product> products = productRepository.searchProducts(title, minPrice, maxPrice, pageable);
-        return products.map(ProductListResponse::of);
+        return products.map(product -> {
+            Boolean isFavorite = userId != null && favoriteUsedItemRepository.existsByUserIdAndProductId(userId, product.getId());
+            return ProductListResponse.of(product, isFavorite);
+        });
     }
 
     @Transactional
-    public void uploadProductImages(String email, Long productId, List<Long> imageIds) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public void uploadProductImages(String name, Long productId, List<Long> imageIds) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
@@ -221,9 +256,9 @@ public class ProductService {
     }
 
     @Transactional
-    public void deleteProductImage(String email, Long productId, Long imageId) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public void deleteProductImage(String name, Long productId, Long imageId) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
@@ -240,16 +275,16 @@ public class ProductService {
         product.removeImage(productImage);
     }
 
-    public Page<ProductListResponse> getUsedProductsFromElasticsearch(int page, int limit, String sortBy, String sortDir) {
+    public Page<ProductListResponse> getUsedProductsFromElasticsearch(int page, int limit, String sortBy, String sortDir, Long userId) {
         Sort sort = createSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page - 1, limit, sort);
 
         return productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable)
-                .map(this::convertToProductListResponse);
+                .map(doc -> convertToProductListResponse(doc, userId));
     }
 
     public Page<ProductListResponse> searchUsedProductsFromElasticsearch(String keyword, int page, int limit,
-                                                                          Integer minPrice, Integer maxPrice) {
+                                                                          Integer minPrice, Integer maxPrice, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<ProductDocument> result;
@@ -261,24 +296,69 @@ public class ProductService {
             result = productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable);
         }
 
-        return result.map(this::convertToProductListResponse);
+        return result.map(doc -> convertToProductListResponse(doc, userId));
     }
 
-    public Page<ProductListResponse> getProductsByTagFromElasticsearch(String tag, int page, int limit) {
+    public Page<ProductListResponse> getProductsByTagFromElasticsearch(String tag, int page, int limit, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         return productSearchRepository.findByTagsContainingAndIsActiveTrue(tag, pageable)
-                .map(this::convertToProductListResponse);
+                .map(doc -> convertToProductListResponse(doc, userId));
     }
 
-    public Page<ProductListResponse> getProductsByTagsFromElasticsearch(List<String> tags, int page, int limit) {
+    public Page<ProductListResponse> getProductsByTagsFromElasticsearch(List<String> tags, int page, int limit, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         return productSearchRepository.findByTagsInAndIsActiveTrue(tags, pageable)
-                .map(this::convertToProductListResponse);
+                .map(doc -> convertToProductListResponse(doc, userId));
+    }
+
+    public Page<ProductListResponse> getSimilarProducts(Long productId, int page, int limit, Long userId) {
+        ProductDocument productDoc = productSearchRepository.findById(ProductDocument.generateId(productId))
+                .orElseThrow(() -> new ProductException(ProductErrorCode.PRODUCT_NOT_FOUND, "id=" + productId));
+
+        if (productDoc.getIsActive() == null || !productDoc.getIsActive()) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), 
+                    PageRequest.of(page - 1, limit), 0);
+        }
+
+        List<String> tags = productDoc.getTags() != null && !productDoc.getTags().isEmpty() 
+                ? productDoc.getTags() 
+                : List.of();
+        Double price = productDoc.getPrice();
+        String title = productDoc.getTitle() != null ? productDoc.getTitle() : "";
+        String description = productDoc.getDescription() != null ? productDoc.getDescription() : "";
+        String searchText = (title + " " + description).trim();
+
+        Integer minPrice = price != null ? (int) (price * 0.7) : null;
+        Integer maxPrice = price != null ? (int) (price * 1.3) : null;
+
+        if (tags.isEmpty() && searchText.isBlank() && minPrice == null) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), 
+                    PageRequest.of(page - 1, limit), 0);
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, limit);
+        Page<ProductDocument> similarProducts = productSearchRepository.findSimilarProducts(
+                productId,
+                productDoc.getType(),
+                tags,
+                minPrice,
+                maxPrice,
+                searchText.isBlank() ? "*" : searchText,
+                pageable
+        );
+
+        return similarProducts.map(doc -> convertToProductListResponse(doc, userId));
     }
 
     private ProductListResponse convertToProductListResponse(ProductDocument document) {
+        return convertToProductListResponse(document, null);
+    }
+
+    private ProductListResponse convertToProductListResponse(ProductDocument document, Long userId) {
         String thumbnailUrl = document.getImageUrls() != null && !document.getImageUrls().isEmpty()
                 ? document.getImageUrls().get(0) : null;
+
+        Boolean isFavorite = userId != null && favoriteUsedItemRepository.existsByUserIdAndProductId(userId, document.getProductId());
 
         return ProductListResponse.builder()
                 .id(document.getProductId())
@@ -292,6 +372,7 @@ public class ProductService {
                         .id(document.getSellerId())
                         .name(document.getSellerName())
                         .build())
+                .isFavorite(isFavorite)
                 .build();
     }
 

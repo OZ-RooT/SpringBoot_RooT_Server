@@ -17,11 +17,13 @@ import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
 import io.github._3xhaust.root_server.domain.image.entity.Image;
 import io.github._3xhaust.root_server.domain.image.repository.ImageRepository;
+import io.github._3xhaust.root_server.infrastructure.redis.service.RedisCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -34,6 +36,12 @@ public class UserService {
     private final FavoriteUsedItemRepository favoriteUsedItemRepository;
     private final FavoriteGarageSaleRepository favoriteGarageSaleRepository;
     private final ImageRepository imageRepository;
+    private final RedisCacheService redisCacheService;
+
+    private static final String CACHE_PREFIX_USER = "user:";
+    private static final String CACHE_PREFIX_USER_BY_NAME = "user:name:";
+    private static final String CACHE_PREFIX_USER_BY_EMAIL = "user:email:";
+    private static final Duration CACHE_TTL = Duration.ofHours(2);
 
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
@@ -44,24 +52,51 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserDTO getUserByEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+        String cacheKey = CACHE_PREFIX_USER_BY_EMAIL + email;
+        return redisCacheService.get(cacheKey, UserDTO.class)
+                .orElseGet(() -> {
+                    User user = userRepository.findByEmail(email)
+                            .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+                    UserDTO dto = toDTO(user);
+                    redisCacheService.set(cacheKey, dto, CACHE_TTL);
+                    redisCacheService.set(CACHE_PREFIX_USER + user.getId(), dto, CACHE_TTL);
+                    return dto;
+                });
+    }
 
-        return toDTO(user);
+    @Transactional(readOnly = true)
+    public UserDTO getUserByName(String name) {
+        String cacheKey = CACHE_PREFIX_USER_BY_NAME + name;
+        return redisCacheService.get(cacheKey, UserDTO.class)
+                .orElseGet(() -> {
+                    User user = userRepository.findByName(name)
+                            .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
+                    UserDTO dto = toDTO(user);
+                    redisCacheService.set(cacheKey, dto, CACHE_TTL);
+                    redisCacheService.set(CACHE_PREFIX_USER + user.getId(), dto, CACHE_TTL);
+                    return dto;
+                });
     }
 
     @Transactional(readOnly = true)
     public UserDTO getUserById(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "id=" + id));
-
-        return toDTO(user);
+        String cacheKey = CACHE_PREFIX_USER + id;
+        return redisCacheService.get(cacheKey, UserDTO.class)
+                .orElseGet(() -> {
+                    User user = userRepository.findById(id)
+                            .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "id=" + id));
+                    UserDTO dto = toDTO(user);
+                    redisCacheService.set(cacheKey, dto, CACHE_TTL);
+                    redisCacheService.set(CACHE_PREFIX_USER_BY_NAME + user.getName(), dto, CACHE_TTL);
+                    redisCacheService.set(CACHE_PREFIX_USER_BY_EMAIL + user.getEmail(), dto, CACHE_TTL);
+                    return dto;
+                });
     }
 
     @Transactional(readOnly = true)
-    public FavoritesResponse getFavorites(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "email=" + email));
+    public FavoritesResponse getFavorites(String name) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
 
         List<Product> favoriteProducts = favoriteUsedItemRepository.findProductsByUserId(user.getId());
         List<GarageSale> favoriteGarageSales = favoriteGarageSaleRepository.findGarageSalesByUserId(user.getId());
@@ -81,6 +116,12 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "id=" + id));
 
+        if (requestDTO.getName() != null && !requestDTO.getName().equals(user.getName())) {
+            if (userRepository.existsByName(requestDTO.getName())) {
+                throw new UserException(UserErrorCode.NAME_DUPLICATED, "name=" + requestDTO.getName());
+            }
+        }
+
         Image profileImage = null;
         if (requestDTO.getProfileImageId() != null) {
             profileImage = imageRepository.findById(requestDTO.getProfileImageId()).orElse(null);
@@ -92,7 +133,11 @@ public class UserService {
                 profileImage
         );
 
-        return toDTO(user);
+        UserDTO dto = toDTO(user);
+        redisCacheService.delete(CACHE_PREFIX_USER + user.getId());
+        redisCacheService.delete(CACHE_PREFIX_USER_BY_NAME + user.getName());
+        redisCacheService.delete(CACHE_PREFIX_USER_BY_EMAIL + user.getEmail());
+        return dto;
     }
 
     @Transactional
@@ -114,6 +159,11 @@ public class UserService {
             throw new UserException(UserErrorCode.USER_NOT_FOUND, "id=" + id);
         }
         userRepository.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean checkNameAvailability(String name) {
+        return !userRepository.existsByName(name);
     }
 
     private UserDTO toDTO(User user) {

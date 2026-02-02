@@ -5,7 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Getter
 @Builder
@@ -19,8 +20,12 @@ public class UpdateGarageSaleRequest {
 
     private Double longitude;
 
-    private Instant startTime;
+    private LocalDate startDate;
 
-    private Instant endTime;
+    private LocalDate endDate;
+
+    private LocalTime startTime;
+
+    private LocalTime endTime;
 }
 

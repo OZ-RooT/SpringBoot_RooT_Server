@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,10 +38,16 @@ public class GarageSale {
     private Double longitude;
 
     @Column(nullable = false)
-    private Instant startTime;
+    private LocalDate startDate;
 
     @Column(nullable = false)
-    private Instant endTime;
+    private LocalDate endDate;
+
+    @Column(nullable = false)
+    private LocalTime startTime;
+
+    @Column(nullable = false)
+    private LocalTime endTime;
 
     @OneToMany(mappedBy = "garageSale")
     private List<Product> products = new ArrayList<>();
@@ -49,11 +57,13 @@ public class GarageSale {
     private Instant createdAt;
 
     @Builder
-    public GarageSale(User owner, String name, Double latitude, Double longitude, Instant startTime, Instant endTime) {
+    public GarageSale(User owner, String name, Double latitude, Double longitude, LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
         this.owner = owner;
         this.name = name;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.startDate = startDate;
+        this.endDate = endDate;
         this.startTime = startTime;
         this.endTime = endTime;
     }
@@ -63,10 +73,12 @@ public class GarageSale {
         this.createdAt = Instant.now();
     }
 
-    public void update(String name, Double latitude, Double longitude, Instant startTime, Instant endTime) {
+    public void update(String name, Double latitude, Double longitude, LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
         this.name = name;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.startDate = startDate;
+        this.endDate = endDate;
         this.startTime = startTime;
         this.endTime = endTime;
     }

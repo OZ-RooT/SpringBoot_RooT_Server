@@ -21,7 +21,7 @@ public class CreateProductRequest {
 
     @NotNull(message = "가격은 필수입니다.")
     @Min(value = 0, message = "가격은 0 이상이어야 합니다.")
-    private Integer price;
+    private Double price;
 
     private String description;
 
@@ -31,6 +31,10 @@ public class CreateProductRequest {
     private Short type; // 0 = USED, 1 = GARAGE
 
     private Long garageSaleId;
+
+    private Double latitude;
+
+    private Double longitude;
 
     private List<Long> imageIds;
 }

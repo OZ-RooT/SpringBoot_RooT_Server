@@ -31,5 +31,13 @@ public interface GarageSaleSearchRepository extends ElasticsearchRepository<Gara
 
     @Query("{\"bool\": {\"filter\": [{\"term\": {\"isActive\": true}}, {\"terms\": {\"tags\": ?0}}]}}")
     Page<GarageSaleDocument> findByTagsInAndIsActiveTrue(List<String> tags, Pageable pageable);
+
+    @Query("{\"bool\": {" +
+           "\"filter\": [" +
+           "{\"term\": {\"isActive\": true}}," +
+           "{\"terms\": {\"garageSaleId\": ?0}}" +
+           "]" +
+           "}}")
+    Page<GarageSaleDocument> findRecommendedGarageSalesByIds(List<Long> ids, Pageable pageable);
 }
 

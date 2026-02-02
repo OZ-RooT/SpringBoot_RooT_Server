@@ -11,6 +11,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Slf4j
@@ -29,7 +33,15 @@ public class ElasticsearchIndexService {
                     .map(img -> img.getImage().getUrl())
                     .toList();
 
-            ProductDocument document = ProductDocument.builder()
+            Double latitude = product.getLatitude();
+            Double longitude = product.getLongitude();
+
+            if (latitude == null && product.getGarageSale() != null) {
+                latitude = product.getGarageSale().getLatitude();
+                longitude = product.getGarageSale().getLongitude();
+            }
+
+            ProductDocument.ProductDocumentBuilder builder = ProductDocument.builder()
                     .id(ProductDocument.generateId(product.getId()))
                     .productId(product.getId())
                     .sellerId(product.getSeller().getId())
@@ -43,7 +55,17 @@ public class ElasticsearchIndexService {
                     .imageUrls(imageUrls)
                     .createdAt(product.getCreatedAt())
                     .isActive(true)
-                    .build();
+                    .latitude(latitude)
+                    .longitude(longitude);
+
+            if (latitude != null && longitude != null) {
+                builder.location(ProductDocument.GeoPoint.builder()
+                        .lat(latitude)
+                        .lon(longitude)
+                        .build());
+            }
+
+            ProductDocument document = builder.build();
 
             productSearchRepository.save(document);
             log.info("Product indexed: {}", product.getId());
@@ -75,6 +97,9 @@ public class ElasticsearchIndexService {
                                 .description(doc.getDescription())
                                 .type(doc.getType())
                                 .garageSaleId(doc.getGarageSaleId())
+                                .latitude(doc.getLatitude())
+                                .longitude(doc.getLongitude())
+                                .location(doc.getLocation())
                                 .tags(doc.getTags())
                                 .imageUrls(doc.getImageUrls())
                                 .createdAt(doc.getCreatedAt())
@@ -105,8 +130,10 @@ public class ElasticsearchIndexService {
                             .lat(garageSale.getLatitude())
                             .lon(garageSale.getLongitude())
                             .build())
-                    .startTime(garageSale.getStartTime())
-                    .endTime(garageSale.getEndTime())
+                    .startDate(garageSale.getStartDate())
+                    .endDate(garageSale.getEndDate())
+                    .startTime(convertToInstant(garageSale.getStartDate(), garageSale.getStartTime()))
+                    .endTime(convertToInstant(garageSale.getEndDate(), garageSale.getEndTime()))
                     .tags(tags)
                     .productCount(garageSale.getProducts().size())
                     .createdAt(garageSale.getCreatedAt())
@@ -143,6 +170,8 @@ public class ElasticsearchIndexService {
                                 .latitude(doc.getLatitude())
                                 .longitude(doc.getLongitude())
                                 .location(doc.getLocation())
+                                .startDate(doc.getStartDate())
+                                .endDate(doc.getEndDate())
                                 .startTime(doc.getStartTime())
                                 .endTime(doc.getEndTime())
                                 .tags(doc.getTags())
@@ -156,6 +185,13 @@ public class ElasticsearchIndexService {
         } catch (Exception e) {
             log.error("Failed to deactivate garage sale: {}", garageSaleId, e);
         }
+    }
+
+    private Instant convertToInstant(LocalDate date, LocalTime time) {
+        if (date == null || time == null) {
+            return Instant.now();
+        }
+        return date.atTime(time).atZone(ZoneId.systemDefault()).toInstant();
     }
 }
 

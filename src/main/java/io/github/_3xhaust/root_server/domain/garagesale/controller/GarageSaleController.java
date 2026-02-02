@@ -6,6 +6,7 @@ import io.github._3xhaust.root_server.domain.garagesale.dto.res.GarageSaleDetail
 import io.github._3xhaust.root_server.domain.garagesale.dto.res.GarageSaleListResponse;
 import io.github._3xhaust.root_server.domain.garagesale.dto.res.GarageSaleResponse;
 import io.github._3xhaust.root_server.domain.garagesale.service.GarageSaleService;
+import io.github._3xhaust.root_server.domain.history.service.HistoryService;
 import io.github._3xhaust.root_server.domain.product.dto.res.ProductResponse;
 import io.github._3xhaust.root_server.global.common.ApiResponse;
 import jakarta.validation.Valid;
@@ -25,6 +26,7 @@ import java.util.List;
 public class GarageSaleController {
 
     private final GarageSaleService garageSaleService;
+    private final HistoryService historyService;
 
     @GetMapping
     public ApiResponse<List<GarageSaleListResponse>> getAllGarageSales(
@@ -37,7 +39,14 @@ public class GarageSaleController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<GarageSaleResponse> getGarageSaleById(@PathVariable Long id) {
+    public ApiResponse<GarageSaleResponse> getGarageSaleById(
+            Authentication authentication,
+            @PathVariable Long id
+    ) {
+        String userEmail = authentication != null
+                ? ((UserDetails) authentication.getPrincipal()).getUsername()
+                : null;
+        historyService.recordView(userEmail, id, null);
         GarageSaleResponse garageSale = garageSaleService.getGarageSaleById(id);
         return ApiResponse.ok(garageSale);
     }
@@ -75,9 +84,14 @@ public class GarageSaleController {
 
     @GetMapping("/{id}/{productId}")
     public ApiResponse<ProductResponse> getGarageSaleProduct(
+            Authentication authentication,
             @PathVariable Long id,
             @PathVariable Long productId
     ) {
+        String userEmail = authentication != null
+                ? ((UserDetails) authentication.getPrincipal()).getUsername()
+                : null;
+        historyService.recordView(userEmail, id, productId);
         ProductResponse product = garageSaleService.getGarageSaleProduct(id, productId);
         return ApiResponse.ok(product);
     }
@@ -107,10 +121,15 @@ public class GarageSaleController {
 
     @GetMapping("/{id}/detail")
     public ApiResponse<GarageSaleDetailResponse> getGarageSaleDetail(
+            Authentication authentication,
             @PathVariable Long id,
             @RequestParam(defaultValue = "1") int productPage,
             @RequestParam(defaultValue = "20") int productLimit
     ) {
+        String userEmail = authentication != null
+                ? ((UserDetails) authentication.getPrincipal()).getUsername()
+                : null;
+        historyService.recordView(userEmail, id, null);
         GarageSaleDetailResponse response = garageSaleService.getGarageSaleDetailFromElasticsearch(id, productPage, productLimit);
         return ApiResponse.ok(response);
     }
