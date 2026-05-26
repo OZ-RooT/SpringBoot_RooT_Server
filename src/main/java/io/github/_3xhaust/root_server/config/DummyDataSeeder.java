@@ -38,13 +38,19 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
 public class DummyDataSeeder implements CommandLineRunner {
+    private static final String MOBILE_ASSET_BASE_URL =
+            "https://raw.githubusercontent.com/3x-haust/Flutter_RooT_Mobile/main/";
+
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
@@ -70,7 +76,13 @@ public class DummyDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        if (!seedEnabled || productRepository.existsByTitle("Fresh Apple")) {
+        if (!seedEnabled) {
+            return;
+        }
+
+        if (productRepository.existsByTitle("Fresh Apple")) {
+            refreshSeedImageUrls();
+            reindexSeedDocuments();
             return;
         }
 
@@ -86,6 +98,36 @@ public class DummyDataSeeder implements CommandLineRunner {
         seedTradeProducts(owner);
         seedGarageSales(owner);
         seedCommunities(owner);
+        refreshSeedImageUrls();
+        reindexSeedDocuments();
+    }
+
+    private void refreshSeedImageUrls() {
+        seedImages().forEach((filename, asset) -> {
+            String expectedUrl = externalAssetUrl(asset);
+            List<String> previousUrls = List.of(
+                    "/api/v1/images/" + filename,
+                    fallbackImageUrl(filename)
+            );
+
+            for (String previousUrl : previousUrls) {
+                imageRepository.findByUrl(previousUrl).ifPresent(image -> {
+                    if (imageRepository.findByUrl(expectedUrl).isEmpty()) {
+                        image.updateUrl(expectedUrl);
+                    }
+                });
+            }
+        });
+    }
+
+    private void reindexSeedDocuments() {
+        seedProductTitles().forEach(title ->
+                productRepository.findFirstByTitle(title).ifPresent(elasticsearchIndexService::indexProduct)
+        );
+        garageSaleRepository.findAll().stream()
+                .filter(garageSale -> "Seoul Weekend Garage Sale".equals(garageSale.getName()))
+                .findFirst()
+                .ifPresent(elasticsearchIndexService::indexGarageSale);
     }
 
     private void seedTradeProducts(User owner) {
@@ -243,15 +285,84 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private Image image(String asset, String filename) {
         String localUrl = "/api/v1/images/" + filename;
+        String externalUrl = externalAssetUrl(asset);
         return imageRepository.findByUrl(localUrl)
                 .orElseGet(() -> {
                     if (copyAsset(asset, filename)) {
                         return imageRepository.save(Image.builder().url(localUrl).build());
                     }
-                    String fallbackUrl = "https://picsum.photos/seed/root-" + filename.replace(".", "-") + "/600/600";
-                    return imageRepository.findByUrl(fallbackUrl)
-                            .orElseGet(() -> imageRepository.save(Image.builder().url(fallbackUrl).build()));
+                    return imageRepository.findByUrl(externalUrl)
+                            .orElseGet(() -> imageRepository.save(Image.builder().url(externalUrl).build()));
                 });
+    }
+
+    private String externalAssetUrl(String asset) {
+        return MOBILE_ASSET_BASE_URL + URLEncoder.encode(asset, StandardCharsets.UTF_8).replace("+", "%20").replace("%2F", "/");
+    }
+
+    private String fallbackImageUrl(String filename) {
+        return "https://picsum.photos/seed/root-" + filename.replace(".", "-") + "/600/600";
+    }
+
+    private Map<String, String> seedImages() {
+        return Map.ofEntries(
+                Map.entry("seed_trade_apple_0.png", "assets/images/search_figma/trade_apple_0.png"),
+                Map.entry("seed_trade_apple_1.png", "assets/images/search_figma/trade_apple_1.png"),
+                Map.entry("seed_trade_apple_2.png", "assets/images/search_figma/trade_apple_2.png"),
+                Map.entry("seed_trade_apple_3.png", "assets/images/search_figma/trade_apple_3.png"),
+                Map.entry("seed_trade_apple_4.png", "assets/images/search_figma/trade_apple_4.png"),
+                Map.entry("seed_trade_apple_5.png", "assets/images/search_figma/trade_apple_3.png"),
+                Map.entry("seed_trade_apple_6.png", "assets/images/search_figma/trade_apple_4.png"),
+                Map.entry("seed_trade_apple_7.png", "assets/images/search_figma/trade_apple_5.png"),
+                Map.entry("seed_rec_black_hoodie.png", "assets/images/search_figma/rec_black_hoodie.png"),
+                Map.entry("seed_rec_quick_sale.png", "assets/images/search_figma/rec_quick_sale.png"),
+                Map.entry("seed_rec_earphones.png", "assets/images/search_figma/rec_earphones.png"),
+                Map.entry("seed_rec_novel.png", "assets/images/search_figma/rec_novel.png"),
+                Map.entry("seed_rec_torch.png", "assets/images/search_figma/rec_torch.png"),
+                Map.entry("seed_rec_airpods.png", "assets/images/search_figma/rec_airpods.png"),
+                Map.entry("seed_rec_watch.png", "assets/images/search_figma/rec_watch.png"),
+                Map.entry("seed_rec_body_lotion.png", "assets/images/search_figma/rec_body_lotion.png"),
+                Map.entry("seed_garage_sale_1.png", "assets/images/search_figma/garage_sale_1.png"),
+                Map.entry("seed_garage_item_0.png", "assets/images/search_figma/garage_item_0.png"),
+                Map.entry("seed_garage_item_1.png", "assets/images/search_figma/garage_item_1.png"),
+                Map.entry("seed_garage_item_2.png", "assets/images/search_figma/garage_item_2.png"),
+                Map.entry("seed_garage_item_3.png", "assets/images/search_figma/garage_item_3.png"),
+                Map.entry("seed_garage_item_4.png", "assets/images/search_figma/garage_item_3.png"),
+                Map.entry("seed_garage_item_5.png", "assets/images/search_figma/garage_item_4.png"),
+                Map.entry("seed_garage_item_6.png", "assets/images/search_figma/garage_item_5.png"),
+                Map.entry("seed_garage_item_7.png", "assets/images/search_figma/garage_item_5.png"),
+                Map.entry("seed_community_post_parrot_0.png", "assets/images/search_figma/community_post_parrot_0.png"),
+                Map.entry("seed_community_post_1.png", "assets/images/community_figma/post_image_1.png")
+        );
+    }
+
+    private List<String> seedProductTitles() {
+        return List.of(
+                "Fresh Apple",
+                "Sweet apples",
+                "Green apple",
+                "Apples today",
+                "Sweet local apples",
+                "Homegrown apples",
+                "Crisp apples",
+                "Organic apples",
+                "Black Hoodie",
+                "QUICK SALE!",
+                "Wired Earphones",
+                "Novel-1984",
+                "Minecraft torch(in real)",
+                "CUTIE Airpodsss<3",
+                "Wrist watch",
+                "Body lotion",
+                "Metal Shelf",
+                "Rustic Wood Rack",
+                "Cozy Wood Storage",
+                "Strong Wall Shelf",
+                "Wooden Space Saver",
+                "Natural Wood Rack",
+                "Pure Wood Style",
+                "Elegant Wood Shelf"
+        );
     }
 
     private boolean copyAsset(String asset, String filename) {

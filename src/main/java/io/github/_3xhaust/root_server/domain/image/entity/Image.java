@@ -30,6 +30,10 @@ public class Image {
         this.url = url;
     }
 
+    public void updateUrl(String url) {
+        this.url = url;
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = Instant.now();
