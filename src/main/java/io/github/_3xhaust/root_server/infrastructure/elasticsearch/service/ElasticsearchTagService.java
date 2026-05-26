@@ -60,7 +60,7 @@ public class ElasticsearchTagService {
         Pageable pageable = PageRequest.of(0, 10000);
         Instant sevenDaysAgo = Instant.now().minusSeconds(7 * 24 * 60 * 60);
 
-        Page<ProductDocument> products = productSearchRepository.findByIsActiveTrue(pageable);
+        Page<ProductDocument> products = productSearchRepository.findByTypeAndIsActiveTrue((short) 0, pageable);
         for (ProductDocument doc : products.getContent()) {
             if (doc.getTags() != null) {
                 for (String tag : doc.getTags()) {
