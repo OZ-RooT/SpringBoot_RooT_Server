@@ -38,6 +38,8 @@ public class RecommendationService {
     private final SearchHistoryRepository searchHistoryRepository;
     private final UserRepository userRepository;
     private final io.github._3xhaust.root_server.infrastructure.elasticsearch.service.ElasticsearchTagService elasticsearchTagService;
+    private static final double DEFAULT_PRODUCT_RADIUS_KM = 10.0;
+    private static final double DEFAULT_GARAGE_RADIUS_KM = 15.0;
 
     public Page<GarageSaleListResponse> recommendGarageSales(
             String userEmail,
@@ -67,7 +69,12 @@ public class RecommendationService {
         recommendedIds.addAll(favoritedIds);
 
         if (recommendedIds.isEmpty()) {
-            return new PageImpl<>(List.of(), PageRequest.of(page - 1, limit), 0);
+            if (hasLocation(latitude, longitude)) {
+                Pageable nearbyPageable = PageRequest.of(page - 1, limit);
+                return garageSaleSearchRepository.findByLocationNear(latitude, longitude, DEFAULT_GARAGE_RADIUS_KM, nearbyPageable)
+                        .map(this::convertToGarageSaleListResponse);
+            }
+            return trendingGarageSales(page, limit);
         }
 
         List<Long> idList = new ArrayList<>(recommendedIds);
@@ -130,7 +137,12 @@ public class RecommendationService {
         recommendedIds.addAll(favoritedIds);
 
         if (recommendedIds.isEmpty()) {
-            return new PageImpl<>(List.of(), PageRequest.of(page - 1, limit), 0);
+            if (hasLocation(latitude, longitude)) {
+                Pageable nearbyPageable = PageRequest.of(page - 1, limit);
+                return productSearchRepository.findByTypeAndLocationNear((short) 0, latitude, longitude, DEFAULT_PRODUCT_RADIUS_KM, nearbyPageable)
+                        .map(this::convertToProductListResponse);
+            }
+            return trendingProducts(page, limit);
         }
 
         List<Long> idList = new ArrayList<>(recommendedIds);
@@ -297,6 +309,8 @@ public class RecommendationService {
                 .description(doc.getDescription())
                 .type(doc.getType())
                 .thumbnailUrl(thumbnailUrl)
+                .latitude(doc.getLatitude())
+                .longitude(doc.getLongitude())
                 .createdAt(doc.getCreatedAt())
                 .seller(ProductListResponse.SellerInfo.builder()
                         .id(doc.getSellerId())
@@ -310,5 +324,11 @@ public class RecommendationService {
             return LocalTime.now();
         }
         return instant.atZone(ZoneId.systemDefault()).toLocalTime();
+    }
+
+    private boolean hasLocation(Double latitude, Double longitude) {
+        return latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90
+                && longitude >= -180 && longitude <= 180;
     }
 }

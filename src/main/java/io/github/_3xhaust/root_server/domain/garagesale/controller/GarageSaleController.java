@@ -32,7 +32,7 @@ public class GarageSaleController {
     public ApiResponse<List<GarageSaleListResponse>> getAllGarageSales(
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
-            @RequestParam(required = false, defaultValue = "10") Double radius
+            @RequestParam(required = false, defaultValue = "15") Double radius
     ) {
         List<GarageSaleListResponse> garageSales = garageSaleService.getAllGarageSales(lat, lng, radius);
         return ApiResponse.ok(garageSales);
@@ -138,7 +138,7 @@ public class GarageSaleController {
     public ApiResponse<Page<GarageSaleListResponse>> getNearbyGarageSales(
             @RequestParam Double latitude,
             @RequestParam Double longitude,
-            @RequestParam(defaultValue = "10") Double radiusKm,
+            @RequestParam(defaultValue = "15") Double radiusKm,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit
     ) {
@@ -178,4 +178,3 @@ public class GarageSaleController {
         return ApiResponse.ok(garageSales);
     }
 }
-

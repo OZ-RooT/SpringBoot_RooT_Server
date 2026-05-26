@@ -61,6 +61,9 @@ public class GarageSaleDocument {
     @Field(type = FieldType.Keyword)
     private List<String> tags;
 
+    @Field(type = FieldType.Keyword)
+    private List<String> imageUrls;
+
     @Field(type = FieldType.Integer)
     private Integer productCount;
 

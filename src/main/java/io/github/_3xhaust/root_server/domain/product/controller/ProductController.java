@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Products", description = "Product management and search APIs for Australian marketplace")
+@Tag(name = "Products", description = "Product management and search APIs for Korean local marketplace")
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
@@ -38,7 +38,10 @@ public class ProductController {
             Authentication authentication,
             @RequestParam(required = false) Short type,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int limit
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) Double radiusKm
     ) {
         Long userId = authentication != null
                 ? userService.getUserByName(((UserDetails) authentication.getPrincipal()).getUsername()).getId()
@@ -65,7 +68,7 @@ public class ProductController {
 
     @Operation(
             summary = "Get similar products",
-            description = "Returns similar products based on tags, price range (±30%), and title/description similarity. Uses Elasticsearch for intelligent matching optimized for Australian marketplace."
+            description = "Returns similar products based on tags, price range (±30%), and title/description similarity. Uses Elasticsearch for intelligent matching optimized for Korean local marketplace."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -181,12 +184,15 @@ public class ProductController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(required = false) Integer minPrice,
-            @RequestParam(required = false) Integer maxPrice
+            @RequestParam(required = false) Integer maxPrice,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) Double radiusKm
     ) {
         Long userId = authentication != null
                 ? userService.getUserByName(((UserDetails) authentication.getPrincipal()).getUsername()).getId()
                 : null;
-        Page<ProductListResponse> products = productService.searchUsedProductsFromElasticsearch(keyword, page, limit, minPrice, maxPrice, userId);
+        Page<ProductListResponse> products = productService.searchUsedProductsFromElasticsearch(keyword, page, limit, minPrice, maxPrice, userId, latitude, longitude, radiusKm);
         return ApiResponse.ok(products);
     }
 
@@ -196,12 +202,15 @@ public class ProductController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir
+            @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) Double radiusKm
     ) {
         Long userId = authentication != null
                 ? userService.getUserByName(((UserDetails) authentication.getPrincipal()).getUsername()).getId()
                 : null;
-        Page<ProductListResponse> products = productService.getUsedProductsFromElasticsearch(page, limit, sortBy, sortDir, userId);
+        Page<ProductListResponse> products = productService.getUsedProductsFromElasticsearch(page, limit, sortBy, sortDir, userId, latitude, longitude, radiusKm);
         return ApiResponse.ok(products);
     }
 

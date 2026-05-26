@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Recommendations", description = "Personalized recommendations and trending content for Australian marketplace")
+@Tag(name = "Recommendations", description = "Personalized recommendations and trending content for Korean local marketplace")
 @RestController
 @RequestMapping("/api/v1/recommendations")
 @RequiredArgsConstructor
@@ -29,7 +29,7 @@ public class RecommendationController {
 
     @Operation(
             summary = "Get recommended garage sales",
-            description = "Returns personalized garage sale recommendations based on user's recent views, searches, and favorites within the last 30 days. Optimized for Australian locations.",
+            description = "Returns personalized garage sale recommendations based on user's recent views, searches, and favorites within the last 30 days. Optimized for Korean locations.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses(value = {
@@ -42,8 +42,8 @@ public class RecommendationController {
     @GetMapping("/garage-sales")
     public ApiResponse<Page<GarageSaleListResponse>> recommendGarageSales(
             @Parameter(description = "User authentication token", hidden = true) Authentication authentication,
-            @Parameter(description = "User's latitude in Australia (e.g., -33.8688 for Sydney)", example = "-33.8688") @RequestParam(required = false) Double latitude,
-            @Parameter(description = "User's longitude in Australia (e.g., 151.2093 for Sydney)", example = "151.2093") @RequestParam(required = false) Double longitude,
+            @Parameter(description = "User's latitude in Korea (e.g., 37.5665 for Seoul)", example = "37.5665") @RequestParam(required = false) Double latitude,
+            @Parameter(description = "User's longitude in Korea (e.g., 126.9780 for Seoul)", example = "126.9780") @RequestParam(required = false) Double longitude,
             @Parameter(description = "Page number (1-indexed)", example = "1") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Number of items per page", example = "20") @RequestParam(defaultValue = "20") int limit
     ) {
@@ -59,7 +59,7 @@ public class RecommendationController {
 
     @Operation(
             summary = "Get recommended products",
-            description = "Returns personalized second-hand product recommendations based on user's recent views, searches, and favorites within the last 30 days. Optimized for Australian marketplace with AUD pricing.",
+            description = "Returns personalized second-hand product recommendations based on user's recent views, searches, and favorites within the last 30 days. Optimized for Korean local marketplace with local pricing.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses(value = {
@@ -72,8 +72,8 @@ public class RecommendationController {
     @GetMapping("/products")
     public ApiResponse<Page<ProductListResponse>> recommendProducts(
             @Parameter(description = "User authentication token", hidden = true) Authentication authentication,
-            @Parameter(description = "User's latitude in Australia", example = "-37.8136") @RequestParam(required = false) Double latitude,
-            @Parameter(description = "User's longitude in Australia", example = "144.9631") @RequestParam(required = false) Double longitude,
+            @Parameter(description = "User's latitude in Korea", example = "37.5665") @RequestParam(required = false) Double latitude,
+            @Parameter(description = "User's longitude in Korea", example = "126.9780") @RequestParam(required = false) Double longitude,
             @Parameter(description = "Page number (1-indexed)", example = "1") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Number of items per page", example = "20") @RequestParam(defaultValue = "20") int limit
     ) {
@@ -89,7 +89,7 @@ public class RecommendationController {
 
     @Operation(
             summary = "Get trending garage sales",
-            description = "Returns trending garage sales across all users in Australia, ranked by popularity (favorites × 2 + views). No authentication required."
+            description = "Returns trending garage sales across all users in Korea, ranked by popularity (favorites × 2 + views). No authentication required."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -109,7 +109,7 @@ public class RecommendationController {
 
     @Operation(
             summary = "Get trending products",
-            description = "Returns trending second-hand products across all users in Australia, ranked by popularity (favorites × 2 + views). No authentication required."
+            description = "Returns trending second-hand products across all users in Korea, ranked by popularity (favorites × 2 + views). No authentication required."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -129,7 +129,7 @@ public class RecommendationController {
 
     @Operation(
             summary = "Get popular garage sale tags",
-            description = "Returns the top popular tags used in garage sales across Australia. Tags are ranked by usage frequency and recent activity."
+            description = "Returns the top popular tags used in garage sales across Korea. Tags are ranked by usage frequency and recent activity."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -148,7 +148,7 @@ public class RecommendationController {
 
     @Operation(
             summary = "Get popular product tags",
-            description = "Returns the top popular tags used in second-hand products across Australia. Tags are ranked by usage frequency and recent activity."
+            description = "Returns the top popular tags used in second-hand products across Korea. Tags are ranked by usage frequency and recent activity."
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(

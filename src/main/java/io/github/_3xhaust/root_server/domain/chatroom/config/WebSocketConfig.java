@@ -24,7 +24,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // 일반 WebSocket 지원 (Flutter 등 네이티브 클라이언트용)
         registry.addEndpoint("/ws/chat")
+                .setAllowedOriginPatterns("*");
+
+        // SockJS 지원 (웹 브라우저용)
+        registry.addEndpoint("/ws/chat/sockjs")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
     }

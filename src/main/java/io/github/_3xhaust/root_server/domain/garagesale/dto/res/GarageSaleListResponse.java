@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 @Getter
 @Builder
@@ -23,6 +24,7 @@ public class GarageSaleListResponse {
     private LocalDate endDate;
     private LocalTime startTime;
     private LocalTime endTime;
+    private List<String> imageUrls;
     private OwnerInfo owner;
     private Integer productCount;
     private Instant createdAt;
@@ -46,6 +48,9 @@ public class GarageSaleListResponse {
                 .endDate(garageSale.getEndDate())
                 .startTime(garageSale.getStartTime())
                 .endTime(garageSale.getEndTime())
+                .imageUrls(garageSale.getGarageSaleImages().stream()
+                        .map(gi -> gi.getImage().getUrl())
+                        .toList())
                 .owner(OwnerInfo.builder()
                         .id(garageSale.getOwner().getId())
                         .name(garageSale.getOwner().getName())

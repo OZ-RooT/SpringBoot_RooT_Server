@@ -25,6 +25,7 @@ public class GarageSaleResponse {
     private LocalDate endDate;
     private LocalTime startTime;
     private LocalTime endTime;
+    private List<String> imageUrls;
     private List<GarageSaleProductResponse> products;
     private Instant createdAt;
 
@@ -56,6 +57,9 @@ public class GarageSaleResponse {
                 .endDate(garageSale.getEndDate())
                 .startTime(garageSale.getStartTime())
                 .endTime(garageSale.getEndTime())
+                .imageUrls(garageSale.getGarageSaleImages().stream()
+                        .map(gi -> gi.getImage().getUrl())
+                        .toList())
                 .products(garageSale.getProducts().stream()
                         .map(GarageSaleProductResponse::of)
                         .toList())
@@ -80,6 +84,9 @@ public class GarageSaleResponse {
                 .endDate(garageSale.getEndDate())
                 .startTime(garageSale.getStartTime())
                 .endTime(garageSale.getEndTime())
+                .imageUrls(garageSale.getGarageSaleImages().stream()
+                        .map(gi -> gi.getImage().getUrl())
+                        .toList())
                 .createdAt(garageSale.getCreatedAt())
                 .build();
     }

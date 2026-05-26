@@ -22,6 +22,7 @@ public class CommunityPostResponse {
     private String title;
     private String body;
     private List<String> imageUrls;
+    private List<String> videoUrls;
     private ReactionCount reactionCount;
     private Integer commentCount;
     private Instant createdAt;
@@ -70,6 +71,11 @@ public class CommunityPostResponse {
                 .body(post.getBody())
                 .imageUrls(post.getPostImages().stream()
                         .map(pi -> pi.getImage().getUrl())
+                        .filter(url -> !isVideoUrl(url))
+                        .toList())
+                .videoUrls(post.getPostImages().stream()
+                        .map(pi -> pi.getImage().getUrl())
+                        .filter(CommunityPostResponse::isVideoUrl)
                         .toList())
                 .reactionCount(ReactionCount.builder()
                         .likeCount(likeCount)
@@ -78,5 +84,17 @@ public class CommunityPostResponse {
                 .commentCount(post.getComments().size())
                 .createdAt(post.getCreatedAt())
                 .build();
+    }
+
+    private static boolean isVideoUrl(String url) {
+        if (url == null) return false;
+        String lower = url.toLowerCase();
+        return lower.contains("/videos/") ||
+                lower.endsWith(".mp4") ||
+                lower.endsWith(".mov") ||
+                lower.endsWith(".m4v") ||
+                lower.endsWith(".webm") ||
+                lower.endsWith(".avi") ||
+                lower.endsWith(".mkv");
     }
 }

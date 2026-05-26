@@ -52,6 +52,9 @@ public class GarageSale {
     @OneToMany(mappedBy = "garageSale")
     private List<Product> products = new ArrayList<>();
 
+    @OneToMany(mappedBy = "garageSale", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GarageSaleImage> garageSaleImages = new ArrayList<>();
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -81,5 +84,32 @@ public class GarageSale {
         this.endDate = endDate;
         this.startTime = startTime;
         this.endTime = endTime;
+    }
+
+    public void addImage(GarageSaleImage garageSaleImage) {
+        this.garageSaleImages.add(garageSaleImage);
+    }
+
+    public void clearImages() {
+        this.garageSaleImages.clear();
+    }
+
+    public void removeImage(GarageSaleImage garageSaleImage) {
+        if (garageSaleImage == null) return;
+
+        boolean removed = this.garageSaleImages.remove(garageSaleImage);
+        if (removed) return;
+
+        final Long targetImageId = garageSaleImage.getImage() != null ? garageSaleImage.getImage().getId() : null;
+
+        if (targetImageId != null) {
+            this.garageSaleImages.removeIf(gi -> {
+                if (gi == null || gi.getImage() == null) return false;
+                final Long imgId = gi.getImage().getId();
+                return imgId != null && imgId.equals(targetImageId);
+            });
+        } else {
+            this.garageSaleImages.removeIf(gi -> gi.equals(garageSaleImage));
+        }
     }
 }

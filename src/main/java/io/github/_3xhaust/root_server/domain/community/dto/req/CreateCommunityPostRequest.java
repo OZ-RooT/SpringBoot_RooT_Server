@@ -23,4 +23,6 @@ public class CreateCommunityPostRequest {
     private String body;
 
     private List<Long> imageIds;
+
+    private List<Long> videoIds;
 }

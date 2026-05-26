@@ -118,6 +118,9 @@ public class ElasticsearchIndexService {
     public void indexGarageSale(GarageSale garageSale) {
         try {
             List<String> tags = tagService.getGarageSaleTags(garageSale.getId());
+            List<String> imageUrls = garageSale.getGarageSaleImages().stream()
+                    .map(img -> img.getImage().getUrl())
+                    .toList();
 
             GarageSaleDocument document = GarageSaleDocument.builder()
                     .id(GarageSaleDocument.generateId(garageSale.getId()))
@@ -137,6 +140,7 @@ public class ElasticsearchIndexService {
                     .startTime(convertToInstant(garageSale.getStartDate(), garageSale.getStartTime()))
                     .endTime(convertToInstant(garageSale.getEndDate(), garageSale.getEndTime()))
                     .tags(tags)
+                    .imageUrls(imageUrls)
                     .productCount(garageSale.getProducts().size())
                     .createdAt(garageSale.getCreatedAt())
                     .isActive(true)
@@ -177,6 +181,7 @@ public class ElasticsearchIndexService {
                                 .startTime(doc.getStartTime())
                                 .endTime(doc.getEndTime())
                                 .tags(doc.getTags())
+                                .imageUrls(doc.getImageUrls())
                                 .productCount(doc.getProductCount())
                                 .createdAt(doc.getCreatedAt())
                                 .isActive(false)
