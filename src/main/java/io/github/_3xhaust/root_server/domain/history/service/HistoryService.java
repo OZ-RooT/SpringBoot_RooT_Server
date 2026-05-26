@@ -8,6 +8,7 @@ import io.github._3xhaust.root_server.domain.user.entity.User;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
 import io.github._3xhaust.root_server.domain.user.exception.UserErrorCode;
 import io.github._3xhaust.root_server.domain.user.exception.UserException;
+import io.github._3xhaust.root_server.infrastructure.elasticsearch.service.ElasticsearchTagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ public class HistoryService {
     private final ViewHistoryRepository viewHistoryRepository;
     private final SearchHistoryRepository searchHistoryRepository;
     private final UserRepository userRepository;
+    private final ElasticsearchTagService elasticsearchTagService;
 
     public void recordView(String name, Long garageSaleId, Long productId) {
         if (name == null) return;
@@ -71,6 +73,16 @@ public class HistoryService {
 
     @Transactional(readOnly = true)
     public List<String> getTopSearchKeywords(int limit) {
-        return searchHistoryRepository.findTopKeywords(limit);
+        List<String> keywords = searchHistoryRepository.findTopKeywords(limit);
+        if (!keywords.isEmpty()) {
+            return keywords;
+        }
+
+        LinkedHashSet<String> indexedTags = new LinkedHashSet<>();
+        indexedTags.addAll(elasticsearchTagService.getPopularProductTags(limit));
+        indexedTags.addAll(elasticsearchTagService.getPopularGarageSaleTags(limit));
+        return indexedTags.stream()
+                .limit(limit)
+                .toList();
     }
 }
