@@ -15,4 +15,5 @@ public class UpdateCommunityPostRequest {
     private String title;
     private String body;
     private List<Long> imageIds;
+    private List<Long> videoIds;
 }

@@ -36,4 +36,6 @@ public class CreateGarageSaleRequest {
 
     @NotNull(message = "종료 시간은 필수입니다.")
     private LocalTime endTime;
+
+    private java.util.List<Long> imageIds;
 }

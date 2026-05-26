@@ -12,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -49,5 +52,25 @@ public class HistoryService {
                 .build();
 
         searchHistoryRepository.save(searchHistory);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getLatestSearchKeywords(String name, int limit) {
+        if (name == null) return List.of();
+
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND, "name=" + name));
+
+        LinkedHashSet<String> uniqueKeywords = new LinkedHashSet<>(
+                searchHistoryRepository.findLatestKeywordsByUserId(user.getId(), Math.max(limit * 3, limit))
+        );
+        return uniqueKeywords.stream()
+                .limit(limit)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getTopSearchKeywords(int limit) {
+        return searchHistoryRepository.findTopKeywords(limit);
     }
 }

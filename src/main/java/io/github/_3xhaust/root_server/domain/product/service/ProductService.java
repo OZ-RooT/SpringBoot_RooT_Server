@@ -54,6 +54,7 @@ public class ProductService {
     private static final String CACHE_PREFIX_PRODUCT = "product:";
     private static final String CACHE_PREFIX_PRODUCT_LIST = "product:list:";
     private static final Duration CACHE_TTL = Duration.ofHours(1);
+    private static final double DEFAULT_PRODUCT_RADIUS_KM = 10.0;
 
     public Page<ProductListResponse> getProducts(Short type, int page, int limit, Long userId) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -278,24 +279,47 @@ public class ProductService {
     }
 
     public Page<ProductListResponse> getUsedProductsFromElasticsearch(int page, int limit, String sortBy, String sortDir, Long userId) {
+        return getUsedProductsFromElasticsearch(page, limit, sortBy, sortDir, userId, null, null, null);
+    }
+
+    public Page<ProductListResponse> getUsedProductsFromElasticsearch(int page, int limit, String sortBy, String sortDir, Long userId,
+                                                                       Double latitude, Double longitude, Double radiusKm) {
         Sort sort = createSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page - 1, limit, sort);
 
-        return productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable)
+        Page<ProductDocument> result = hasLocation(latitude, longitude)
+                ? productSearchRepository.findByTypeAndLocationNear(TYPE_USED, latitude, longitude, radiusOrDefault(radiusKm), pageable)
+                : productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable);
+
+        return result
                 .map(doc -> convertToProductListResponse(doc, userId));
     }
 
     public Page<ProductListResponse> searchUsedProductsFromElasticsearch(String keyword, int page, int limit,
                                                                           Integer minPrice, Integer maxPrice, Long userId) {
+        return searchUsedProductsFromElasticsearch(keyword, page, limit, minPrice, maxPrice, userId, null, null, null);
+    }
+
+    public Page<ProductListResponse> searchUsedProductsFromElasticsearch(String keyword, int page, int limit,
+                                                                          Integer minPrice, Integer maxPrice, Long userId,
+                                                                          Double latitude, Double longitude, Double radiusKm) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<ProductDocument> result;
+        boolean near = hasLocation(latitude, longitude);
+        double radius = radiusOrDefault(radiusKm);
         if (minPrice != null && maxPrice != null) {
-            result = productSearchRepository.findByPriceRangeAndType(minPrice, maxPrice, TYPE_USED, pageable);
+            result = near
+                    ? productSearchRepository.findByPriceRangeAndTypeNear(minPrice, maxPrice, TYPE_USED, latitude, longitude, radius, pageable)
+                    : productSearchRepository.findByPriceRangeAndType(minPrice, maxPrice, TYPE_USED, pageable);
         } else if (keyword != null && !keyword.isBlank()) {
-            result = productSearchRepository.searchByKeywordAndType(keyword, TYPE_USED, pageable);
+            result = near
+                    ? productSearchRepository.searchByKeywordAndTypeNear(keyword, TYPE_USED, latitude, longitude, radius, pageable)
+                    : productSearchRepository.searchByKeywordAndType(keyword, TYPE_USED, pageable);
         } else {
-            result = productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable);
+            result = near
+                    ? productSearchRepository.findByTypeAndLocationNear(TYPE_USED, latitude, longitude, radius, pageable)
+                    : productSearchRepository.findByTypeAndIsActiveTrue(TYPE_USED, pageable);
         }
 
         return result.map(doc -> convertToProductListResponse(doc, userId));
@@ -370,6 +394,8 @@ public class ProductService {
                 .description(document.getDescription())
                 .type(document.getType())
                 .thumbnailUrl(thumbnailUrl)
+                .latitude(document.getLatitude())
+                .longitude(document.getLongitude())
                 .createdAt(document.getCreatedAt())
                 .seller(ProductListResponse.SellerInfo.builder()
                         .id(document.getSellerId())
@@ -383,5 +409,18 @@ public class ProductService {
         String field = sortBy != null ? sortBy : "createdAt";
         Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
         return Sort.by(direction, field);
+    }
+
+    private boolean hasLocation(Double latitude, Double longitude) {
+        return latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90
+                && longitude >= -180 && longitude <= 180;
+    }
+
+    private double radiusOrDefault(Double radiusKm) {
+        if (radiusKm == null || radiusKm <= 0) {
+            return DEFAULT_PRODUCT_RADIUS_KM;
+        }
+        return Math.min(radiusKm, 80.0);
     }
 }

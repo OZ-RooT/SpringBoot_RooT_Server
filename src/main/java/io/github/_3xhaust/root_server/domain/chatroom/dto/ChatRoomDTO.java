@@ -15,10 +15,13 @@ public class ChatRoomDTO {
     private Long id;
     private Long productId;
     private String productTitle;
+    private Double productPrice;
     private Long sellerId;
     private String sellerName;
     private Long buyerId;
     private String buyerName;
     private Instant createdAt;
+    private String lastMessage;
+    private Instant lastMessageTime;
     private Long unreadCount;
 }

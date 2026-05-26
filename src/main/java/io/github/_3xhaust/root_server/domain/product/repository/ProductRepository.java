@@ -9,9 +9,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
+    boolean existsByTitle(String title);
+
+    Optional<Product> findFirstByTitle(String title);
+
     Page<Product> findByType(Short type, Pageable pageable);
 
     Page<Product> findByGarageSaleId(Long garageSaleId, Pageable pageable);

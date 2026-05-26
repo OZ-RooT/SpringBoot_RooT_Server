@@ -10,6 +10,8 @@ import io.github._3xhaust.root_server.domain.garagesale.exception.GarageSaleErro
 import io.github._3xhaust.root_server.domain.garagesale.exception.GarageSaleException;
 import io.github._3xhaust.root_server.domain.garagesale.repository.FavoriteGarageSaleRepository;
 import io.github._3xhaust.root_server.domain.garagesale.repository.GarageSaleRepository;
+import io.github._3xhaust.root_server.domain.garagesale.repository.GarageSaleImageRepository;
+import io.github._3xhaust.root_server.domain.garagesale.entity.GarageSaleImage;
 import io.github._3xhaust.root_server.domain.product.dto.res.ProductListResponse;
 import io.github._3xhaust.root_server.domain.product.dto.res.ProductResponse;
 import io.github._3xhaust.root_server.domain.product.entity.FavoriteUsedItem;
@@ -22,6 +24,8 @@ import io.github._3xhaust.root_server.domain.user.entity.User;
 import io.github._3xhaust.root_server.domain.user.exception.UserErrorCode;
 import io.github._3xhaust.root_server.domain.user.exception.UserException;
 import io.github._3xhaust.root_server.domain.user.repository.UserRepository;
+import io.github._3xhaust.root_server.domain.image.entity.Image;
+import io.github._3xhaust.root_server.domain.image.repository.ImageRepository;
 import io.github._3xhaust.root_server.domain.garagesale.dto.res.GarageSaleDetailResponse;
 import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.GarageSaleDocument;
 import io.github._3xhaust.root_server.infrastructure.elasticsearch.document.ProductDocument;
@@ -50,6 +54,9 @@ public class GarageSaleService {
     private final UserRepository userRepository;
     private final GarageSaleSearchRepository garageSaleSearchRepository;
     private final ProductSearchRepository productSearchRepository;
+    private final GarageSaleImageRepository garageSaleImageRepository;
+    private final ImageRepository imageRepository;
+    private static final double DEFAULT_GARAGE_RADIUS_KM = 15.0;
 
     public List<GarageSaleListResponse> getAllGarageSales(Double lat, Double lng, Double radius) {
         List<GarageSale> garageSales;
@@ -88,6 +95,20 @@ public class GarageSaleService {
                 .build();
 
         GarageSale savedGarageSale = garageSaleRepository.save(garageSale);
+
+        if (request.getImageIds() != null && !request.getImageIds().isEmpty()) {
+            for (Long imageId : request.getImageIds()) {
+                Image image = imageRepository.findById(imageId)
+                        .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
+                GarageSaleImage garageSaleImage = GarageSaleImage.builder()
+                        .garageSale(savedGarageSale)
+                        .image(image)
+                        .build();
+                garageSaleImageRepository.save(garageSaleImage);
+                savedGarageSale.addImage(garageSaleImage);
+            }
+        }
+
         return GarageSaleResponse.ofWithoutProducts(savedGarageSale);
     }
 
@@ -112,6 +133,22 @@ public class GarageSaleService {
                 request.getStartTime() != null ? request.getStartTime() : garageSale.getStartTime(),
                 request.getEndTime() != null ? request.getEndTime() : garageSale.getEndTime()
         );
+
+        if (request.getImageIds() != null) {
+            garageSaleImageRepository.deleteByGarageSaleId(garageSale.getId());
+            garageSale.clearImages();
+
+            for (Long imageId : request.getImageIds()) {
+                Image image = imageRepository.findById(imageId)
+                        .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
+                GarageSaleImage garageSaleImage = GarageSaleImage.builder()
+                        .garageSale(garageSale)
+                        .image(image)
+                        .build();
+                garageSaleImageRepository.save(garageSaleImage);
+                garageSale.addImage(garageSaleImage);
+            }
+        }
 
         return GarageSaleResponse.of(garageSale);
     }
@@ -220,7 +257,7 @@ public class GarageSaleService {
     public Page<GarageSaleListResponse> searchNearbyGarageSalesFromElasticsearch(Double latitude, Double longitude,
                                                                                     Double radiusKm, int page, int limit) {
         Pageable pageable = PageRequest.of(page - 1, limit);
-        double radius = radiusKm != null ? radiusKm : 10.0;
+        double radius = radiusOrDefault(radiusKm);
 
         return garageSaleSearchRepository.findByLocationNear(latitude, longitude, radius, pageable)
                 .map(doc -> {
@@ -250,8 +287,16 @@ public class GarageSaleService {
     }
 
     public Page<GarageSaleListResponse> searchGarageSalesByKeyword(String keyword, int page, int limit) {
+        return searchGarageSalesByKeyword(keyword, page, limit, null, null, null);
+    }
+
+    public Page<GarageSaleListResponse> searchGarageSalesByKeyword(String keyword, int page, int limit,
+                                                                    Double latitude, Double longitude, Double radiusKm) {
         Pageable pageable = PageRequest.of(page - 1, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return garageSaleSearchRepository.searchByKeyword(keyword, pageable)
+        Page<GarageSaleDocument> result = hasLocation(latitude, longitude)
+                ? garageSaleSearchRepository.searchByKeywordNear(keyword, latitude, longitude, radiusOrDefault(radiusKm), pageable)
+                : garageSaleSearchRepository.searchByKeyword(keyword, pageable);
+        return result
                 .map(this::convertToGarageSaleListResponse);
     }
 
@@ -280,6 +325,7 @@ public class GarageSaleService {
                 .endDate(endDate)
                 .startTime(startTime)
                 .endTime(endTime)
+                .imageUrls(document.getImageUrls())
                 .owner(GarageSaleListResponse.OwnerInfo.builder()
                         .id(document.getOwnerId())
                         .name(document.getOwnerName())
@@ -324,5 +370,17 @@ public class GarageSaleService {
         Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
         return Sort.by(direction, field);
     }
-}
 
+    private boolean hasLocation(Double latitude, Double longitude) {
+        return latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90
+                && longitude >= -180 && longitude <= 180;
+    }
+
+    private double radiusOrDefault(Double radiusKm) {
+        if (radiusKm == null || radiusKm <= 0) {
+            return DEFAULT_GARAGE_RADIUS_KM;
+        }
+        return Math.min(radiusKm, 120.0);
+    }
+}

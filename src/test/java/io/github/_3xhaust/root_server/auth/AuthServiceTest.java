@@ -112,7 +112,7 @@ class AuthServiceTest extends IntegrationTest {
                 .andExpect(status().isCreated());
 
         LoginRequest loginRequest = LoginRequest.builder()
-                .email("mockuser@example.com")
+                .name("MockUser")
                 .password("mockpassword123")
                 .build();
 

@@ -20,6 +20,7 @@ public class CommunityPostListResponse {
     private String title;
     private String body;
     private String thumbnailUrl;
+    private String videoUrl;
     private AuthorInfo author;
     private ReactionCount reactionCount;
     private Integer commentCount;
@@ -52,8 +53,16 @@ public class CommunityPostListResponse {
                 .filter(r -> r.getReaction() != null && r.getReaction() == -1)
                 .count();
 
-        String thumbnailUrl = post.getPostImages().isEmpty() ? null :
-                post.getPostImages().get(0).getImage().getUrl();
+        String thumbnailUrl = post.getPostImages().stream()
+                .map(pi -> pi.getImage().getUrl())
+                .filter(url -> !isVideoUrl(url))
+                .findFirst()
+                .orElse(null);
+        String videoUrl = post.getPostImages().stream()
+                .map(pi -> pi.getImage().getUrl())
+                .filter(CommunityPostListResponse::isVideoUrl)
+                .findFirst()
+                .orElse(null);
 
         return CommunityPostListResponse.builder()
                 .id(post.getId())
@@ -64,6 +73,7 @@ public class CommunityPostListResponse {
                 .body(post.getBody() != null && post.getBody().length() > 100 ?
                         post.getBody().substring(0, 100) + "..." : post.getBody())
                 .thumbnailUrl(thumbnailUrl)
+                .videoUrl(videoUrl)
                 .author(AuthorInfo.builder()
                         .id(post.getAuthor().getId())
                         .name(post.getAuthor().getName())
@@ -77,5 +87,17 @@ public class CommunityPostListResponse {
                 .commentCount(post.getComments().size())
                 .createdAt(post.getCreatedAt())
                 .build();
+    }
+
+    private static boolean isVideoUrl(String url) {
+        if (url == null) return false;
+        String lower = url.toLowerCase();
+        return lower.contains("/videos/") ||
+                lower.endsWith(".mp4") ||
+                lower.endsWith(".mov") ||
+                lower.endsWith(".m4v") ||
+                lower.endsWith(".webm") ||
+                lower.endsWith(".avi") ||
+                lower.endsWith(".mkv");
     }
 }

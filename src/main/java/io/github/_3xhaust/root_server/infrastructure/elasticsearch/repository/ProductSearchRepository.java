@@ -14,11 +14,17 @@ public interface ProductSearchRepository extends ElasticsearchRepository<Product
 
     Page<ProductDocument> findByIsActiveTrue(Pageable pageable);
 
+    @Query("{\"bool\": {\"filter\": [{\"term\": {\"isActive\": true}}, {\"term\": {\"type\": ?0}}, {\"geo_distance\": {\"distance\": \"?3km\", \"location\": {\"lat\": ?1, \"lon\": ?2}}}]}}")
+    Page<ProductDocument> findByTypeAndLocationNear(Short type, Double latitude, Double longitude, Double distanceKm, Pageable pageable);
+
     @Query("{\"bool\": {\"must\": [{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"title^3\", \"description\"], \"fuzziness\": \"AUTO\"}}], \"filter\": [{\"term\": {\"isActive\": true}}]}}")
     Page<ProductDocument> searchByKeyword(String keyword, Pageable pageable);
 
     @Query("{\"bool\": {\"must\": [{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"title^3\", \"description\"], \"fuzziness\": \"AUTO\"}}], \"filter\": [{\"term\": {\"isActive\": true}}, {\"term\": {\"type\": ?1}}]}}")
     Page<ProductDocument> searchByKeywordAndType(String keyword, Short type, Pageable pageable);
+
+    @Query("{\"bool\": {\"must\": [{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"title^3\", \"description\"], \"fuzziness\": \"AUTO\"}}], \"filter\": [{\"term\": {\"isActive\": true}}, {\"term\": {\"type\": ?1}}, {\"geo_distance\": {\"distance\": \"?4km\", \"location\": {\"lat\": ?2, \"lon\": ?3}}}]}}")
+    Page<ProductDocument> searchByKeywordAndTypeNear(String keyword, Short type, Double latitude, Double longitude, Double distanceKm, Pageable pageable);
 
     Page<ProductDocument> findByTagsContainingAndIsActiveTrue(String tag, Pageable pageable);
 
@@ -31,6 +37,9 @@ public interface ProductSearchRepository extends ElasticsearchRepository<Product
 
     @Query("{\"bool\": {\"must\": [{\"range\": {\"price\": {\"gte\": ?0, \"lte\": ?1}}}], \"filter\": [{\"term\": {\"isActive\": true}}, {\"term\": {\"type\": ?2}}]}}")
     Page<ProductDocument> findByPriceRangeAndType(Integer minPrice, Integer maxPrice, Short type, Pageable pageable);
+
+    @Query("{\"bool\": {\"must\": [{\"range\": {\"price\": {\"gte\": ?0, \"lte\": ?1}}}], \"filter\": [{\"term\": {\"isActive\": true}}, {\"term\": {\"type\": ?2}}, {\"geo_distance\": {\"distance\": \"?5km\", \"location\": {\"lat\": ?3, \"lon\": ?4}}}]}}")
+    Page<ProductDocument> findByPriceRangeAndTypeNear(Integer minPrice, Integer maxPrice, Short type, Double latitude, Double longitude, Double distanceKm, Pageable pageable);
 
     @Query("{\"bool\": {" +
            "\"must_not\": [{\"term\": {\"productId\": ?0}}]," +
@@ -57,4 +66,3 @@ public interface ProductSearchRepository extends ElasticsearchRepository<Product
            "}}")
     Page<ProductDocument> findRecommendedProductsByIds(Short type, List<Long> ids, Pageable pageable);
 }
-

@@ -20,6 +20,8 @@ public class ProductListResponse {
     private String description;
     private Short type;
     private String thumbnailUrl;
+    private Double latitude;
+    private Double longitude;
     private Instant createdAt;
     private SellerInfo seller;
     private Boolean isFavorite;
@@ -51,6 +53,8 @@ public class ProductListResponse {
                 .description(product.getDescription())
                 .type(product.getType())
                 .thumbnailUrl(thumbnailUrl)
+                .latitude(product.getLatitude() != null ? product.getLatitude() : product.getGarageSale() != null ? product.getGarageSale().getLatitude() : null)
+                .longitude(product.getLongitude() != null ? product.getLongitude() : product.getGarageSale() != null ? product.getGarageSale().getLongitude() : null)
                 .createdAt(product.getCreatedAt())
                 .seller(SellerInfo.builder()
                         .id(product.getSeller().getId())
@@ -60,4 +64,3 @@ public class ProductListResponse {
                 .build();
     }
 }
-

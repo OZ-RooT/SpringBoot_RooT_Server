@@ -27,5 +27,7 @@ public class UpdateGarageSaleRequest {
     private LocalTime startTime;
 
     private LocalTime endTime;
+
+    private java.util.List<Long> imageIds;
 }
 

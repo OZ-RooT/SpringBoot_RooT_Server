@@ -23,6 +23,8 @@ public class ProductResponse {
     private String body;
     private Short type;
     private Long garageSaleId;
+    private Double latitude;
+    private Double longitude;
     private List<String> imageUrls;
     private Boolean isFavorite;
     private Instant createdAt;
@@ -59,6 +61,8 @@ public class ProductResponse {
                 .body(product.getBody())
                 .type(product.getType())
                 .garageSaleId(product.getGarageSale() != null ? product.getGarageSale().getId() : null)
+                .latitude(product.getLatitude() != null ? product.getLatitude() : product.getGarageSale() != null ? product.getGarageSale().getLatitude() : null)
+                .longitude(product.getLongitude() != null ? product.getLongitude() : product.getGarageSale() != null ? product.getGarageSale().getLongitude() : null)
                 .imageUrls(product.getProductImages().stream()
                         .map(pi -> pi.getImage().getUrl())
                         .toList())
@@ -67,4 +71,3 @@ public class ProductResponse {
                 .build();
     }
 }
-

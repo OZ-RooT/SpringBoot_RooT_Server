@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Builder
@@ -19,6 +20,7 @@ public class CommunityListResponse {
     private Integer points;
     private Short gradeLevel;
     private Integer postCount;
+    private List<String> tags;
     private Instant createdAt;
 
     public static CommunityListResponse of(Community community) {
@@ -31,6 +33,9 @@ public class CommunityListResponse {
                 .postCount(community.getChannels().stream()
                         .mapToInt(channel -> channel.getPosts().size())
                         .sum())
+                .tags(community.getTags().stream()
+                        .map(communityTag -> communityTag.getTag().getName())
+                        .toList())
                 .createdAt(community.getCreatedAt())
                 .build();
     }

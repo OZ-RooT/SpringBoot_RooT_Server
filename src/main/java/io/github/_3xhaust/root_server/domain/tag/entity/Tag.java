@@ -1,5 +1,6 @@
 package io.github._3xhaust.root_server.domain.tag.entity;
 
+import io.github._3xhaust.root_server.domain.image.entity.Image;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -21,9 +22,14 @@ public class Tag {
     @Column(length = 15)
     private String category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "image_id")
+    private Image image;
+
     @Builder
-    public Tag(String name, String category) {
+    public Tag(String name, String category, Image image) {
         this.name = name;
         this.category = category;
+        this.image = image;
     }
 }

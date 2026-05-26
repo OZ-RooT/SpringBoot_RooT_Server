@@ -29,6 +29,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -72,18 +73,8 @@ public class CommunityPostService {
 
         CommunityPost savedPost = communityPostRepository.save(post);
 
-        if (request.getImageIds() != null && !request.getImageIds().isEmpty()) {
-            for (Long imageId : request.getImageIds()) {
-                Image image = imageRepository.findById(imageId)
-                        .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
-                CommunityPostImage postImage = CommunityPostImage.builder()
-                        .post(savedPost)
-                        .image(image)
-                        .build();
-                communityPostImageRepository.save(postImage);
-                savedPost.addImage(postImage);
-            }
-        }
+        attachMedia(savedPost, request.getImageIds());
+        attachMedia(savedPost, request.getVideoIds());
 
         channel.getCommunity().addPoints(10);
         return CommunityPostResponse.of(savedPost);
@@ -103,20 +94,12 @@ public class CommunityPostService {
 
         post.update(request.getTitle(), request.getBody());
 
-        if (request.getImageIds() != null) {
+        if (request.getImageIds() != null || request.getVideoIds() != null) {
             post.clearImages();
             communityPostImageRepository.deleteByPostId(id);
 
-            for (Long imageId : request.getImageIds()) {
-                Image image = imageRepository.findById(imageId)
-                        .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
-                CommunityPostImage postImage = CommunityPostImage.builder()
-                        .post(post)
-                        .image(image)
-                        .build();
-                communityPostImageRepository.save(postImage);
-                post.addImage(postImage);
-            }
+            attachMedia(post, request.getImageIds());
+            attachMedia(post, request.getVideoIds());
         }
 
         return CommunityPostResponse.of(post);
@@ -166,6 +149,21 @@ public class CommunityPostService {
                     .reaction(request.getReaction())
                     .build();
             communityPostReactionRepository.save(reaction);
+        }
+    }
+
+    private void attachMedia(CommunityPost post, List<Long> mediaIds) {
+        if (mediaIds == null || mediaIds.isEmpty()) return;
+
+        for (Long mediaId : mediaIds) {
+            Image image = imageRepository.findById(mediaId)
+                    .orElseThrow(() -> new IllegalArgumentException("Media not found: " + mediaId));
+            CommunityPostImage postImage = CommunityPostImage.builder()
+                    .post(post)
+                    .image(image)
+                    .build();
+            communityPostImageRepository.save(postImage);
+            post.addImage(postImage);
         }
     }
 }

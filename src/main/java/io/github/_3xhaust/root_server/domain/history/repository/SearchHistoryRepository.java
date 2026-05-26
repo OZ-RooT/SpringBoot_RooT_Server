@@ -28,4 +28,23 @@ public interface SearchHistoryRepository extends JpaRepository<SearchHistory, Lo
            "AND sh.createdAt >= :since " +
            "ORDER BY sh.createdAt DESC")
     List<String> findRecentKeywordsByUserId(@Param("userId") Long userId, @Param("since") Instant since);
+
+    @Query(value = """
+            SELECT sh.keyword
+            FROM search_history sh
+            WHERE sh.user_id = :userId
+            ORDER BY sh.created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<String> findLatestKeywordsByUserId(@Param("userId") Long userId, @Param("limit") int limit);
+
+    @Query(value = """
+            SELECT sh.keyword
+            FROM search_history sh
+            WHERE sh.keyword IS NOT NULL AND sh.keyword <> ''
+            GROUP BY sh.keyword
+            ORDER BY COUNT(*) DESC, MAX(sh.created_at) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<String> findTopKeywords(@Param("limit") int limit);
 }

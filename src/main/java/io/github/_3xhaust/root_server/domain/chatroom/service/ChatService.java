@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -69,38 +70,77 @@ public class ChatService {
     }
 
     @Transactional
+    public ChatMessageDTO saveMessageDto(Long chatRoomId, Long senderId, String message) {
+        return toDto(saveMessage(chatRoomId, senderId, message));
+    }
+
+    @Transactional
     public void saveMessages(List<ChatMessageDTO> messages) {
         for (ChatMessageDTO dto : messages) {
             saveMessage(dto.getChatRoomId(), dto.getSenderId(), dto.getMessage());
         }
     }
 
+    public boolean isParticipant(Long chatRoomId, Long userId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("ChatRoom not found: " + chatRoomId));
+        return Objects.equals(chatRoom.getSeller().getId(), userId)
+                || Objects.equals(chatRoom.getBuyer().getId(), userId);
+    }
+
     public List<ChatRoomDTO> getChatRoomsByUserId(Long userId) {
         List<ChatRoom> chatRooms = chatRoomRepository.findBySellerIdOrBuyerId(userId, userId);
         return chatRooms.stream()
-                .map(chatRoom -> ChatRoomDTO.builder()
-                        .id(chatRoom.getId())
-                        .productId(chatRoom.getProduct().getId())
-                        .productTitle(chatRoom.getProduct().getTitle())
-                        .sellerId(chatRoom.getSeller().getId())
-                        .sellerName(chatRoom.getSeller().getName())
-                        .buyerId(chatRoom.getBuyer().getId())
-                        .buyerName(chatRoom.getBuyer().getName())
-                        .createdAt(chatRoom.getCreatedAt())
-                        .build())
+                .map(chatRoom -> {
+                    java.util.Optional<ChatMessage> latestMessage = getLatestMessage(chatRoom.getId());
+                    return ChatRoomDTO.builder()
+                            .id(chatRoom.getId())
+                            .productId(chatRoom.getProduct().getId())
+                            .productTitle(chatRoom.getProduct().getTitle())
+                            .productPrice(chatRoom.getProduct().getPrice())
+                            .sellerId(chatRoom.getSeller().getId())
+                            .sellerName(chatRoom.getSeller().getName())
+                            .buyerId(chatRoom.getBuyer().getId())
+                            .buyerName(chatRoom.getBuyer().getName())
+                            .createdAt(chatRoom.getCreatedAt())
+                            .lastMessage(latestMessage.map(ChatMessage::getMessage).orElse(null))
+                            .lastMessageTime(latestMessage.map(ChatMessage::getCreatedAt).orElse(null))
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 
     public Page<ChatMessageDTO> getMessages(Long chatRoomId, int page, int size) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<ChatMessage> messages = chatMessageRepository.findByChatRoomIdOrderByCreatedAtDesc(chatRoomId, pageable);
-        return messages.map(message -> ChatMessageDTO.builder()
+        return messages.map(this::toDto);
+    }
+
+    public Long getLatestMessageId(Long chatRoomId) {
+        return chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(chatRoomId)
+                .map(ChatMessage::getId)
+                .orElse(null);
+    }
+
+    public long getUnreadCount(Long chatRoomId, Long userId, Long lastReadMessageId) {
+        if (lastReadMessageId == null) {
+            return chatMessageRepository.countByChatRoomIdAndSenderIdNot(chatRoomId, userId);
+        }
+        return chatMessageRepository.countByChatRoomIdAndSenderIdNotAndIdGreaterThan(chatRoomId, userId, lastReadMessageId);
+    }
+
+    private ChatMessageDTO toDto(ChatMessage message) {
+        return ChatMessageDTO.builder()
                 .id(message.getId())
                 .chatRoomId(message.getChatRoom().getId())
                 .senderId(message.getSender().getId())
                 .senderName(message.getSender().getName())
                 .message(message.getMessage())
                 .createdAt(message.getCreatedAt())
-                .build());
+                .build();
+    }
+
+    private java.util.Optional<ChatMessage> getLatestMessage(Long chatRoomId) {
+        return chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(chatRoomId);
     }
 }

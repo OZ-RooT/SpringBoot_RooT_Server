@@ -16,6 +16,9 @@ public interface GarageSaleSearchRepository extends ElasticsearchRepository<Gara
     @Query("{\"bool\": {\"must\": [{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"name^3\"], \"fuzziness\": \"AUTO\"}}], \"filter\": [{\"term\": {\"isActive\": true}}]}}")
     Page<GarageSaleDocument> searchByKeyword(String keyword, Pageable pageable);
 
+    @Query("{\"bool\": {\"must\": [{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"name^3\"], \"fuzziness\": \"AUTO\"}}], \"filter\": [{\"term\": {\"isActive\": true}}, {\"geo_distance\": {\"distance\": \"?3km\", \"location\": {\"lat\": ?1, \"lon\": ?2}}}]}}")
+    Page<GarageSaleDocument> searchByKeywordNear(String keyword, Double latitude, Double longitude, Double distanceKm, Pageable pageable);
+
     @Query("{\"bool\": {\"filter\": [{\"term\": {\"isActive\": true}}, {\"geo_distance\": {\"distance\": \"?2km\", \"location\": {\"lat\": ?0, \"lon\": ?1}}}]}}")
     Page<GarageSaleDocument> findByLocationNear(Double latitude, Double longitude, Double distanceKm, Pageable pageable);
 
@@ -40,4 +43,3 @@ public interface GarageSaleSearchRepository extends ElasticsearchRepository<Gara
            "}}")
     Page<GarageSaleDocument> findRecommendedGarageSalesByIds(List<Long> ids, Pageable pageable);
 }
-

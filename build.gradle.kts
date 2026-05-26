@@ -34,6 +34,7 @@ dependencies {
         implementation("org.springframework.boot:spring-boot-starter-data-redis")
         implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
         implementation("org.springframework.boot:spring-boot-devtools")
+        implementation("com.corundumstudio.socketio:netty-socketio:2.0.14")
 
         implementation("io.jsonwebtoken:jjwt-api:0.13.0")
         runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
