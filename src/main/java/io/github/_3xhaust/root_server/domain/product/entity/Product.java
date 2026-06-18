@@ -1,6 +1,7 @@
 package io.github._3xhaust.root_server.domain.product.entity;
 
 import io.github._3xhaust.root_server.domain.garagesale.entity.GarageSale;
+import io.github._3xhaust.root_server.domain.tag.entity.ProductTag;
 import io.github._3xhaust.root_server.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -56,6 +57,9 @@ public class Product {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> productImages = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product")
+    private List<ProductTag> productTags = new ArrayList<>();
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

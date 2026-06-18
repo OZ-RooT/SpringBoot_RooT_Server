@@ -295,6 +295,8 @@ public class RecommendationService {
                         .build())
                 .productCount(doc.getProductCount())
                 .createdAt(doc.getCreatedAt())
+                .tags(doc.getTags())
+                .imageUrls(doc.getImageUrls())
                 .build();
     }
 
@@ -316,6 +318,7 @@ public class RecommendationService {
                         .id(doc.getSellerId())
                         .name(doc.getSellerName())
                         .build())
+                .tags(doc.getTags())
                 .build();
     }
 

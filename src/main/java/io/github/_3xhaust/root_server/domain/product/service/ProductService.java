@@ -402,6 +402,7 @@ public class ProductService {
                         .name(document.getSellerName())
                         .build())
                 .isFavorite(isFavorite)
+                .tags(document.getTags())
                 .build();
     }
 

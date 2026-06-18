@@ -332,6 +332,7 @@ public class GarageSaleService {
                         .build())
                 .productCount(document.getProductCount())
                 .createdAt(document.getCreatedAt())
+                .tags(document.getTags())
                 .build();
     }
 
@@ -351,6 +352,7 @@ public class GarageSaleService {
                         .id(document.getSellerId())
                         .name(document.getSellerName())
                         .build())
+                .tags(document.getTags())
                 .build();
     }
 

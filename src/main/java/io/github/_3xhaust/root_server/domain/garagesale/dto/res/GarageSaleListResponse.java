@@ -28,6 +28,7 @@ public class GarageSaleListResponse {
     private OwnerInfo owner;
     private Integer productCount;
     private Instant createdAt;
+    private List<String> tags;
 
     @Getter
     @Builder
@@ -57,7 +58,9 @@ public class GarageSaleListResponse {
                         .build())
                 .productCount(garageSale.getProducts().size())
                 .createdAt(garageSale.getCreatedAt())
+                .tags(garageSale.getGarageSaleTags().stream()
+                        .map(garageSaleTag -> garageSaleTag.getTag().getName())
+                        .toList())
                 .build();
     }
 }
-

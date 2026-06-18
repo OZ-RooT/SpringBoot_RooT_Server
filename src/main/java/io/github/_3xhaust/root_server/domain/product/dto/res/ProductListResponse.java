@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Builder
@@ -25,6 +26,7 @@ public class ProductListResponse {
     private Instant createdAt;
     private SellerInfo seller;
     private Boolean isFavorite;
+    private List<String> tags;
 
     @Getter
     @Builder
@@ -61,6 +63,9 @@ public class ProductListResponse {
                         .name(product.getSeller().getName())
                         .build())
                 .isFavorite(isFavorite)
+                .tags(product.getProductTags().stream()
+                        .map(productTag -> productTag.getTag().getName())
+                        .toList())
                 .build();
     }
 }

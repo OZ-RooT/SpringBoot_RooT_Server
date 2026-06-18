@@ -28,6 +28,7 @@ public class ProductResponse {
     private List<String> imageUrls;
     private Boolean isFavorite;
     private Instant createdAt;
+    private List<String> tags;
 
     @Getter
     @Builder
@@ -68,6 +69,9 @@ public class ProductResponse {
                         .toList())
                 .isFavorite(isFavorite)
                 .createdAt(product.getCreatedAt())
+                .tags(product.getProductTags().stream()
+                        .map(productTag -> productTag.getTag().getName())
+                        .toList())
                 .build();
     }
 }

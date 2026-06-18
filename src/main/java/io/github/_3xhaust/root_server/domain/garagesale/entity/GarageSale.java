@@ -1,6 +1,7 @@
 package io.github._3xhaust.root_server.domain.garagesale.entity;
 
 import io.github._3xhaust.root_server.domain.product.entity.Product;
+import io.github._3xhaust.root_server.domain.tag.entity.GarageSaleTag;
 import io.github._3xhaust.root_server.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -54,6 +55,9 @@ public class GarageSale {
 
     @OneToMany(mappedBy = "garageSale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GarageSaleImage> garageSaleImages = new ArrayList<>();
+
+    @OneToMany(mappedBy = "garageSale")
+    private List<GarageSaleTag> garageSaleTags = new ArrayList<>();
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
