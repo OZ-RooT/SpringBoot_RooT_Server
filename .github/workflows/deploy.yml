@@ -3,6 +3,7 @@ name: Deploy to SSH Server
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -12,22 +13,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up SSH
+      - name: Resolve SSH connection
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H -p 2201 "$SSH_HOST" >> ~/.ssh/known_hosts || true
+
+          preferred_port="${SSH_PORT:-2201}"
+          ports="$preferred_port"
+          if [ "$preferred_port" != "22" ]; then ports="$ports 22"; fi
+          if [ "$preferred_port" != "2201" ]; then ports="$ports 2201"; fi
+
+          for port in $ports; do
+            ssh-keyscan -H -p "$port" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            if ssh -i ~/.ssh/id_ed25519 \
+                -o BatchMode=yes \
+                -o ConnectTimeout=10 \
+                -o StrictHostKeyChecking=accept-new \
+                -p "$port" "$SSH_USER@$SSH_HOST" "echo deploy-ready" >/dev/null 2>&1; then
+              echo "DEPLOY_PORT=$port" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          echo "Could not connect to SSH host on configured/default ports." >&2
+          exit 1
 
       - name: Deploy via SSH
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -p 2201 "$SSH_USER@$SSH_HOST" << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -p "$DEPLOY_PORT" "$SSH_USER@$SSH_HOST" << 'EOF'
             set -e
             cd SpringBoot_RooT_Server/
             git pull origin main
