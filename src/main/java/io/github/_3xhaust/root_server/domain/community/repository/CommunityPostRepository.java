@@ -8,8 +8,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface CommunityPostRepository extends JpaRepository<CommunityPost, Long> {
+    Optional<CommunityPost> findFirstByTitle(String title);
+
     Page<CommunityPost> findByChannelId(Long channelId, Pageable pageable);
 
     Page<CommunityPost> findByAuthorId(Long authorId, Pageable pageable);

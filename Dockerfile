@@ -17,6 +17,7 @@ ENV JAVA_OPTS=""
 RUN mkdir -p /app/uploads/images
 
 COPY --from=builder /home/gradle/project/build/libs/*.jar /app/app.jar
+COPY uploads ./uploads
 
 EXPOSE 8080
 ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar /app/app.jar"]

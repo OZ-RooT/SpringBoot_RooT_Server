@@ -19,7 +19,9 @@ import io.github._3xhaust.root_server.domain.product.entity.ProductImage;
 import io.github._3xhaust.root_server.domain.product.repository.ProductImageRepository;
 import io.github._3xhaust.root_server.domain.product.repository.ProductRepository;
 import io.github._3xhaust.root_server.domain.tag.entity.GarageSaleTag;
+import io.github._3xhaust.root_server.domain.tag.entity.GarageSaleTagId;
 import io.github._3xhaust.root_server.domain.tag.entity.ProductTag;
+import io.github._3xhaust.root_server.domain.tag.entity.ProductTagId;
 import io.github._3xhaust.root_server.domain.tag.entity.Tag;
 import io.github._3xhaust.root_server.domain.tag.repository.GarageSaleTagRepository;
 import io.github._3xhaust.root_server.domain.tag.repository.ProductTagRepository;
@@ -80,12 +82,6 @@ public class DummyDataSeeder implements CommandLineRunner {
             return;
         }
 
-        if (productRepository.existsByTitle("Fresh Apple")) {
-            refreshSeedImageUrls();
-            reindexSeedDocuments();
-            return;
-        }
-
         User owner = userRepository.findByEmail("demo@root.local")
                 .orElseGet(() -> userRepository.save(User.builder()
                         .email("demo@root.local")
@@ -95,6 +91,7 @@ public class DummyDataSeeder implements CommandLineRunner {
                         .language("en")
                         .build()));
 
+        refreshSeedImageUrls();
         seedTradeProducts(owner);
         seedGarageSales(owner);
         seedCommunities(owner);
@@ -104,9 +101,10 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private void refreshSeedImageUrls() {
         seedImages().forEach((filename, asset) -> {
-            String expectedUrl = externalAssetUrl(asset);
+            copyAsset(asset, filename);
+            String expectedUrl = localImageUrl(filename);
             List<String> previousUrls = List.of(
-                    "/api/v1/images/" + filename,
+                    externalAssetUrl(asset),
                     fallbackImageUrl(filename)
             );
 
@@ -154,16 +152,29 @@ public class DummyDataSeeder implements CommandLineRunner {
     }
 
     private void seedGarageSales(User owner) {
-        GarageSale sale = garageSaleRepository.save(GarageSale.builder()
-                .owner(owner)
-                .name("Seoul Weekend Garage Sale")
-                .latitude(37.5665)
-                .longitude(126.9780)
-                .startDate(LocalDate.now().plusDays(1))
-                .endDate(LocalDate.now().plusDays(3))
-                .startTime(LocalTime.of(8, 0))
-                .endTime(LocalTime.of(15, 0))
-                .build());
+        GarageSale sale = garageSaleRepository.findFirstByName("Seoul Weekend Garage Sale")
+                .map(existing -> {
+                    existing.update(
+                            "Seoul Weekend Garage Sale",
+                            37.5665,
+                            126.9780,
+                            LocalDate.now().plusDays(1),
+                            LocalDate.now().plusDays(3),
+                            LocalTime.of(8, 0),
+                            LocalTime.of(15, 0)
+                    );
+                    return existing;
+                })
+                .orElseGet(() -> garageSaleRepository.save(GarageSale.builder()
+                        .owner(owner)
+                        .name("Seoul Weekend Garage Sale")
+                        .latitude(37.5665)
+                        .longitude(126.9780)
+                        .startDate(LocalDate.now().plusDays(1))
+                        .endDate(LocalDate.now().plusDays(3))
+                        .startTime(LocalTime.of(8, 0))
+                        .endTime(LocalTime.of(15, 0))
+                        .build()));
         attachGarageImage(sale, "assets/images/search_figma/garage_sale_1.png", "seed_garage_sale_1.png");
         attachGarageTag(sale, "Furniture");
         attachGarageTag(sale, "Clothes");
@@ -188,41 +199,49 @@ public class DummyDataSeeder implements CommandLineRunner {
     }
 
     private void seedCommunities(User owner) {
-        Community community = communityRepository.save(Community.builder()
-                .owner(owner)
-                .name("All about Parrot")
-                .description("Share parrot care, photos, and daily questions.")
-                .points(333)
-                .gradeLevel((short) 1)
-                .build());
+        Community community = communityRepository.findFirstByName("All about Parrot")
+                .orElseGet(() -> communityRepository.save(Community.builder()
+                        .owner(owner)
+                        .name("All about Parrot")
+                        .description("Share parrot care, photos, and daily questions.")
+                        .points(333)
+                        .gradeLevel((short) 1)
+                        .build()));
 
-        CommunityChannel channel = communityChannelRepository.save(CommunityChannel.builder()
-                .community(community)
-                .name("General")
-                .description("Parrot stories and care tips")
-                .type("PHOTO")
-                .build());
+        CommunityChannel channel = communityChannelRepository.findFirstByCommunityIdAndName(community.getId(), "General")
+                .orElseGet(() -> communityChannelRepository.save(CommunityChannel.builder()
+                        .community(community)
+                        .name("General")
+                        .description("Parrot stories and care tips")
+                        .type("PHOTO")
+                        .build()));
 
-        CommunityPost post = communityPostRepository.save(CommunityPost.builder()
-                .channel(channel)
-                .author(owner)
-                .title("Morning parrot routine")
-                .body("I've been living with my parrot for about a year now, and I'm still learning something new every day.")
-                .build());
+        CommunityPost post = communityPostRepository.findFirstByTitle("Morning parrot routine")
+                .orElseGet(() -> communityPostRepository.save(CommunityPost.builder()
+                        .channel(channel)
+                        .author(owner)
+                        .title("Morning parrot routine")
+                        .body("I've been living with my parrot for about a year now, and I'm still learning something new every day.")
+                        .build()));
         attachPostImage(post, "assets/images/search_figma/community_post_parrot_0.png", "seed_community_post_parrot_0.png");
 
-        CommunityPost secondPost = communityPostRepository.save(CommunityPost.builder()
-                .channel(channel)
-                .author(owner)
-                .title("Parrot walk today")
-                .body("I took a walk with my cutieee parrot today, and it instantly lifted my mood.")
-                .build());
+        CommunityPost secondPost = communityPostRepository.findFirstByTitle("Parrot walk today")
+                .orElseGet(() -> communityPostRepository.save(CommunityPost.builder()
+                        .channel(channel)
+                        .author(owner)
+                        .title("Parrot walk today")
+                        .body("I took a walk with my cutieee parrot today, and it instantly lifted my mood.")
+                        .build()));
         attachPostImage(secondPost, "assets/images/community_figma/post_image_1.png", "seed_community_post_1.png");
     }
 
     private Product product(User owner, String title, Double price, Double sale, String description, String body, String asset, String filename, List<String> tags) {
-        return productRepository.findFirstByTitle(title).orElseGet(() -> {
-            Product product = productRepository.save(Product.builder()
+        Product product = productRepository.findFirstByTitle(title)
+                .map(existing -> {
+                    existing.update(title, price, sale, description, body, 37.5665, 126.9780);
+                    return existing;
+                })
+                .orElseGet(() -> productRepository.save(Product.builder()
                 .seller(owner)
                 .title(title)
                 .price(price)
@@ -232,16 +251,19 @@ public class DummyDataSeeder implements CommandLineRunner {
                 .type((short) 0)
                 .latitude(37.5665)
                 .longitude(126.9780)
-                .build());
-            attachProductImage(product, asset, filename);
-            tags.forEach(tag -> attachProductTag(product, tag));
-            return product;
-        });
+                .build()));
+        attachProductImage(product, asset, filename);
+        tags.forEach(tag -> attachProductTag(product, tag));
+        return product;
     }
 
     private Product garageProduct(User owner, GarageSale garageSale, String title, Double price, String description, String body, String asset, String filename, List<String> tags) {
-        return productRepository.findFirstByTitle(title).orElseGet(() -> {
-            Product product = productRepository.save(Product.builder()
+        Product product = productRepository.findFirstByTitle(title)
+                .map(existing -> {
+                    existing.update(title, price, null, description, body, null, null);
+                    return existing;
+                })
+                .orElseGet(() -> productRepository.save(Product.builder()
                 .seller(owner)
                 .title(title)
                 .price(price)
@@ -249,15 +271,18 @@ public class DummyDataSeeder implements CommandLineRunner {
                 .body(body)
                 .type((short) 1)
                 .garageSale(garageSale)
-                .build());
-            attachProductImage(product, asset, filename);
-            tags.forEach(tag -> attachProductTag(product, tag));
-            return product;
-        });
+                .build()));
+        attachProductImage(product, asset, filename);
+        tags.forEach(tag -> attachProductTag(product, tag));
+        return product;
     }
 
     private void attachProductImage(Product product, String asset, String filename) {
         Image image = image(asset, filename);
+        removePreviousSeedProductImage(product, asset, filename);
+        if (productImageRepository.findByProductIdAndImageId(product.getId(), image.getId()) != null) {
+            return;
+        }
         ProductImage productImage = productImageRepository.save(ProductImage.builder()
                 .product(product)
                 .image(image)
@@ -267,6 +292,10 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private void attachGarageImage(GarageSale garageSale, String asset, String filename) {
         Image image = image(asset, filename);
+        removePreviousSeedGarageImage(garageSale, asset, filename);
+        if (garageSaleImageRepository.findByGarageSaleIdAndImageId(garageSale.getId(), image.getId()) != null) {
+            return;
+        }
         GarageSaleImage garageSaleImage = garageSaleImageRepository.save(GarageSaleImage.builder()
                 .garageSale(garageSale)
                 .image(image)
@@ -276,6 +305,11 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private void attachPostImage(CommunityPost post, String asset, String filename) {
         Image image = image(asset, filename);
+        boolean exists = communityPostImageRepository.findByPostId(post.getId()).stream()
+                .anyMatch(postImage -> postImage.getImage().getId().equals(image.getId()));
+        if (exists) {
+            return;
+        }
         CommunityPostImage postImage = communityPostImageRepository.save(CommunityPostImage.builder()
                 .post(post)
                 .image(image)
@@ -284,16 +318,18 @@ public class DummyDataSeeder implements CommandLineRunner {
     }
 
     private Image image(String asset, String filename) {
-        String localUrl = "/api/v1/images/" + filename;
+        String localUrl = localImageUrl(filename);
         String externalUrl = externalAssetUrl(asset);
-        return imageRepository.findByUrl(localUrl)
-                .orElseGet(() -> {
-                    if (copyAsset(asset, filename)) {
-                        return imageRepository.save(Image.builder().url(localUrl).build());
-                    }
-                    return imageRepository.findByUrl(externalUrl)
-                            .orElseGet(() -> imageRepository.save(Image.builder().url(externalUrl).build()));
-                });
+        if (copyAsset(asset, filename)) {
+            return imageRepository.findByUrl(localUrl)
+                    .orElseGet(() -> imageRepository.save(Image.builder().url(localUrl).build()));
+        }
+        return imageRepository.findByUrl(externalUrl)
+                .orElseGet(() -> imageRepository.save(Image.builder().url(externalUrl).build()));
+    }
+
+    private String localImageUrl(String filename) {
+        return "/api/v1/images/" + filename;
     }
 
     private String externalAssetUrl(String asset) {
@@ -366,14 +402,17 @@ public class DummyDataSeeder implements CommandLineRunner {
     }
 
     private boolean copyAsset(String asset, String filename) {
-        Path source = Path.of("../root_mobile", asset);
         Path destination = Path.of(uploadDir, filename);
+        Path source = Path.of("../root_mobile", asset);
+        if (!Files.exists(source)) {
+            source = Path.of(uploadDir, filename);
+        }
         if (!Files.exists(source)) {
             return false;
         }
         try {
             Files.createDirectories(destination.getParent());
-            if (!Files.exists(destination)) {
+            if (!source.toAbsolutePath().normalize().equals(destination.toAbsolutePath().normalize())) {
                 Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
             }
             return true;
@@ -384,6 +423,10 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private void attachProductTag(Product product, String name) {
         Tag tag = tag(name, "product");
+        ProductTagId id = new ProductTagId(product.getId(), tag.getId());
+        if (productTagRepository.existsById(id)) {
+            return;
+        }
         productTagRepository.save(ProductTag.builder()
                 .product(product)
                 .tag(tag)
@@ -392,6 +435,10 @@ public class DummyDataSeeder implements CommandLineRunner {
 
     private void attachGarageTag(GarageSale garageSale, String name) {
         Tag tag = tag(name, "garage");
+        GarageSaleTagId id = new GarageSaleTagId(garageSale.getId(), tag.getId());
+        if (garageSaleTagRepository.existsById(id)) {
+            return;
+        }
         garageSaleTagRepository.save(GarageSaleTag.builder()
                 .garageSale(garageSale)
                 .tag(tag)
@@ -404,5 +451,28 @@ public class DummyDataSeeder implements CommandLineRunner {
                         .name(name)
                         .category(category)
                         .build()));
+    }
+
+    private void removePreviousSeedProductImage(Product product, String asset, String filename) {
+        productImageRepository.findByProductId(product.getId()).stream()
+                .filter(productImage -> isPreviousSeedUrl(productImage.getImage().getUrl(), asset, filename))
+                .forEach(productImage -> {
+                    product.removeImage(productImage);
+                    productImageRepository.delete(productImage);
+                });
+    }
+
+    private void removePreviousSeedGarageImage(GarageSale garageSale, String asset, String filename) {
+        garageSale.getGarageSaleImages().stream()
+                .filter(garageSaleImage -> isPreviousSeedUrl(garageSaleImage.getImage().getUrl(), asset, filename))
+                .toList()
+                .forEach(garageSaleImage -> {
+                    garageSale.removeImage(garageSaleImage);
+                    garageSaleImageRepository.delete(garageSaleImage);
+                });
+    }
+
+    private boolean isPreviousSeedUrl(String url, String asset, String filename) {
+        return externalAssetUrl(asset).equals(url) || fallbackImageUrl(filename).equals(url);
     }
 }

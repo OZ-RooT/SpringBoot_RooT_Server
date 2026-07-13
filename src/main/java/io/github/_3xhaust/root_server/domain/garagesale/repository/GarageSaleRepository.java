@@ -9,9 +9,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface GarageSaleRepository extends JpaRepository<GarageSale, Long> {
+    Optional<GarageSale> findFirstByName(String name);
 
     @Query("SELECT g FROM GarageSale g WHERE g.owner.id = :ownerId")
     Page<GarageSale> findByOwnerId(@Param("ownerId") Long ownerId, Pageable pageable);
@@ -28,4 +30,3 @@ public interface GarageSaleRepository extends JpaRepository<GarageSale, Long> {
             @Param("radius") Double radiusKm
     );
 }
-
